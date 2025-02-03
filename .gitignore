@@ -1,4 +1,5 @@
 build/opt/
+workspace/
 zsim.out
 zsim.h5
 zsim-ev.h5
