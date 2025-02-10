@@ -211,7 +211,9 @@ uint64_t TimingCache::access(MemReq& req) {
             };
 
             // Get path
+			//printf("Here. accessRecord.respCycle=%ld, endCycle=%ld\n", accessRecord.respCycle, getDoneCycle);
             connect(accessRecord.isValid()? &accessRecord : nullptr, mse, mre, req.cycle + accLat, getDoneCycle);
+			//printf("Here 222\n");
             mre->addChild(mwe, evRec);
 
             // Eviction path
@@ -323,7 +325,10 @@ void TimingCache::simulateMissStart(MissStartEvent* ev, uint64_t cycle) {
 }
 
 void TimingCache::simulateMissResponse(MissResponseEvent* ev, uint64_t cycle, MissStartEvent* mse) {
-    profMissRespLat.inc(cycle - mse->startCycle);
+	//assert(cycle - mse->startCycle < (1 << 30) );
+	// XXX HACK
+	if (cycle > mse->startCycle)
+	    profMissRespLat.inc(cycle - mse->startCycle);
     ev->done(cycle);
 }
 
@@ -331,7 +336,8 @@ void TimingCache::simulateMissWriteback(MissWritebackEvent* ev, uint64_t cycle, 
     uint64_t lookupCycle = tryLowPrioAccess(cycle);
     if (lookupCycle) { //success, release MSHR
         assert(activeMisses);
-        profMissLat.inc(cycle - mse->startCycle);
+		if (cycle > mse->startCycle)
+	        profMissLat.inc(cycle - mse->startCycle);
         activeMisses--;
         profOccHist.transition(activeMisses, lookupCycle);
         if (!pendingQueue.empty()) {

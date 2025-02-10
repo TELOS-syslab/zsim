@@ -30,7 +30,9 @@
 #include "cache.h"
 #include "galloc.h"
 #include "zsim.h"
-
+#include "g_std/g_unordered_map.h"
+#include "g_std/g_unordered_set.h"
+#include "config.h"
 /* Extends Cache with an L0 direct-mapped cache, optimized to hell for hits
  *
  * L1 lookups are dominated by several kinds of overhead (grab the cache locks,
@@ -60,10 +62,14 @@ class FilterCache : public Cache {
 
         lock_t filterLock;
         uint64_t fGETSHit, fGETXHit;
-
+		// this is not an accurate tlb. It just randomize the page nums   
+		bool _enable_tlb;
+		drand48_data _buffer;
+		g_unordered_map <Address, Address> _tlb;
+		g_unordered_set <Address> _exist_pgnum; 
     public:
         FilterCache(uint32_t _numSets, uint32_t _numLines, CC* _cc, CacheArray* _array,
-                ReplPolicy* _rp, uint32_t _accLat, uint32_t _invLat, g_string& _name)
+                ReplPolicy* _rp, uint32_t _accLat, uint32_t _invLat, g_string& _name, Config &config)
             : Cache(_numLines, _cc, _array, _rp, _accLat, _invLat, _name)
         {
             numSets = _numSets;
@@ -74,6 +80,8 @@ class FilterCache : public Cache {
             fGETSHit = fGETXHit = 0;
             srcId = -1;
             reqFlags = 0;
+			_enable_tlb = config.get<bool>("sim.enableTLB", false);
+			srand48_r((uint64_t)this, &_buffer);
         }
 
         void setSourceId(uint32_t id) {
@@ -126,9 +134,26 @@ class FilterCache : public Cache {
         }
 
         uint64_t replace(Address vLineAddr, uint32_t idx, bool isLoad, uint64_t curCycle) {
-            Address pLineAddr = procMask | vLineAddr;
+			Address pLineAddr;
+			// page num = vLineAddr shifted by 6 bits. So it is shifted by 12 bits in total (4KB page size)
+			if (_enable_tlb) {
+				Address vpgnum = vLineAddr >> 6; 
+				uint64_t pgnum;
+        	    futex_lock(&filterLock);
+				if (_tlb.find(vpgnum) == _tlb.end()) {
+					do {
+						int64_t rand;
+						lrand48_r(&_buffer, &rand);
+						pgnum = rand & 0x000fffffffffffff;
+					} while (_exist_pgnum.find(pgnum) != _exist_pgnum.end());
+					_tlb[vpgnum] = pgnum;
+					_exist_pgnum.insert( pgnum );
+				} else 
+					pgnum = _tlb[vpgnum];	
+				pLineAddr = procMask | (pgnum << 6) | (vLineAddr & 0x3f); 
+			} else 
+            	pLineAddr = procMask | vLineAddr;
             MESIState dummyState = MESIState::I;
-            futex_lock(&filterLock);
             MemReq req = {pLineAddr, isLoad? GETS : GETX, 0, &dummyState, curCycle, &filterLock, dummyState, srcId, reqFlags};
             uint64_t respCycle  = access(req);
 

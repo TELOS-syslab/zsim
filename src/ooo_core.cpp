@@ -143,12 +143,9 @@ void OOOCore::store(Address addr) {
 
 // Predicated loads and stores call this function, gets recorded as a 0-cycle op.
 // Predication is rare enough that we don't need to model it perfectly to be accurate (i.e. the uops still execute, retire, etc), but this is needed for correctness.
-void OOOCore::predFalseLoad() {
+void OOOCore::predFalseMemOp() {
+    // I'm going to go out on a limb and assume just loads are predicated (this will not fail silently if it's a store)
     loadAddrs[loads++] = -1L;
-}
-
-void OOOCore::predFalseStore() {
-    storeAddrs[stores++] = -1L;
 }
 
 void OOOCore::branch(Address pc, bool taken, Address takenNpc, Address notTakenNpc) {
@@ -493,13 +490,13 @@ void OOOCore::StoreFunc(THREADID tid, ADDRINT addr) {static_cast<OOOCore*>(cores
 void OOOCore::PredLoadFunc(THREADID tid, ADDRINT addr, BOOL pred) {
     OOOCore* core = static_cast<OOOCore*>(cores[tid]);
     if (pred) core->load(addr);
-    else core->predFalseLoad();
+    else core->predFalseMemOp();
 }
 
 void OOOCore::PredStoreFunc(THREADID tid, ADDRINT addr, BOOL pred) {
     OOOCore* core = static_cast<OOOCore*>(cores[tid]);
     if (pred) core->store(addr);
-    else core->predFalseStore();
+    else core->predFalseMemOp();
 }
 
 void OOOCore::BblFunc(THREADID tid, ADDRINT bblAddr, BblInfo* bblInfo) {

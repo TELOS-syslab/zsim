@@ -1,31 +1,27 @@
 /** $lic$
- * Copyright (C) 2012-2015 by Massachusetts Institute of Technology
- * Copyright (C) 2010-2013 by The Board of Trustees of Stanford University
+ * Copyright (C) 2012-2013 by Massachusetts Institute of Technology
+ * Copyright (C) 2010-2012 by The Board of Trustees of Stanford University
  *
  * This file is part of zsim.
  *
- * zsim is free software; you can redistribute it and/or modify it under the
- * terms of the GNU General Public License as published by the Free Software
- * Foundation, version 2.
+ * This is an internal version, and is not under GPL. All rights reserved.
+ * Only MIT and Stanford students and faculty are allowed to use this version.
  *
  * If you use this software in your research, we request that you reference
  * the zsim paper ("ZSim: Fast and Accurate Microarchitectural Simulation of
- * Thousand-Core Systems", Sanchez and Kozyrakis, ISCA-40, June 2013) as the
+ * Thousand-Core Systems", Sanchez and Kozyrakis, ISCA-40, June 2010) as the
  * source of the simulator in any publications that use this software, and that
  * you send us a citation of your work.
  *
  * zsim is distributed in the hope that it will be useful, but WITHOUT ANY
  * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program. If not, see <http://www.gnu.org/licenses/>.
+ * FOR A PARTICULAR PURPOSE.
  */
 
 #ifndef PREFETCHER_H_
 #define PREFETCHER_H_
 
+#include <array>
 #include <bitset>
 #include "bithacks.h"
 #include "g_std/g_string.h"
@@ -49,6 +45,8 @@ class SatCounter {
         bool pred() const { return count >= T; }
         uint32_t counter() const { return count; }
 };
+
+class PrefetchResponseEvent;
 
 /* This is basically a souped-up version of the DLP L2 prefetcher in Nehalem: 16 stream buffers,
  * but (a) no up/down distinction, and (b) strided operation based on dominant stride detection
@@ -74,6 +72,11 @@ class StreamPrefetcher : public BaseCache {
             AccessTimes times[64];
             std::bitset<64> valid;
 
+            // Weave-phase end-of-access event. Used to avoid early responses with weave models.
+            // Self-cleaning (PrefetchResponseEvent sets this to nullptr when it fires),
+            // so can't be stale.
+            std::array<PrefetchResponseEvent*, 64> respEvents;
+
             uint32_t lastPos;
             uint32_t lastLastPos;
             uint32_t lastPrefetchPos;
@@ -87,13 +90,14 @@ class StreamPrefetcher : public BaseCache {
                 lastPrefetchPos = 0;
                 conf.reset();
                 valid.reset();
+                respEvents.fill(nullptr);
                 lastCycle = curCycle;
             }
         };
 
         uint64_t timestamp;  // for LRU
-        Address tag[16];
-        Entry array[16];
+        Address* tag;
+        Entry* array;
 
         Counter profAccesses, profPrefetches, profDoublePrefetches, profPageHits, profHits, profShortHits, profStrideSwitches, profLowConfAccs;
 
@@ -102,8 +106,14 @@ class StreamPrefetcher : public BaseCache {
         uint32_t childId;
         g_string name;
 
+        uint32_t numBuffers;
+        bool partitionBuffers; // partition stream buffer among data classes
+        uint32_t partitions;
+        static constexpr uint32_t MAX_PARTITIONS = 4;
+
     public:
-        explicit StreamPrefetcher(const g_string& _name) : timestamp(0), name(_name) {}
+        StreamPrefetcher(const g_string& _name, uint32_t _numBuffers, bool _partitionBuffers);
+        ~StreamPrefetcher();
         void initStats(AggregateStat* parentStat);
         const char* getName() { return name.c_str();}
         void setParents(uint32_t _childId, const g_vector<MemObject*>& parents, Network* network);
@@ -111,6 +121,8 @@ class StreamPrefetcher : public BaseCache {
 
         uint64_t access(MemReq& req);
         uint64_t invalidate(const InvReq& req);
+
+        void simulatePrefetchResponse(PrefetchResponseEvent* ev, uint64_t cycle);
 };
 
 #endif  // PREFETCHER_H_

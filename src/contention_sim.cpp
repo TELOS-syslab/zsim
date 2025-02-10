@@ -291,7 +291,7 @@ void ContentionSim::simThreadLoop(uint32_t thid) {
 void ContentionSim::simulatePhaseThread(uint32_t thid) {
     uint32_t thDomains = simThreads[thid].supDomain - simThreads[thid].firstDomain;
     uint32_t numFinished = 0;
-
+	//printf("thDomains = %d\n", thDomains);
     if (thDomains == 1) {
         DomainData& domain = domains[simThreads[thid].firstDomain];
         domain.profTime.start();
@@ -300,6 +300,9 @@ void ContentionSim::simulatePhaseThread(uint32_t thid) {
             uint64_t domCycle = domain.curCycle;
             uint64_t cycle;
             TimingEvent* te = pq.dequeue(cycle);
+			//printf("cycle=%ld, domain=%d, numChild=%d, preDelay=%d, postDelay=%d, minStart=%ld\n",
+			//	cycle, te->getDomain(), te->getNumChildren(), te->getPreDelay(), te->getPostDelay(),
+			//	te->getMinStartCycle());
             assert(cycle >= domCycle);
             if (cycle != domCycle) {
                 domCycle = cycle;
