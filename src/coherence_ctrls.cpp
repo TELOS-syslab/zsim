@@ -68,12 +68,14 @@ uint64_t MESIBottomCC::processEviction(Address wbLineAddr, uint32_t lineId, bool
         case E:
             {
                 MemReq req = {wbLineAddr, PUTS, selfId, state, cycle, &ccLock, *state, srcId, 0 /*no flags*/};
+				//printf("[71] ID=%d, name=%s\n", getParentId(wbLineAddr), parents[getParentId(wbLineAddr)]->getName());
                 respCycle = parents[getParentId(wbLineAddr)]->access(req);
             }
             break;
         case M:
             {
                 MemReq req = {wbLineAddr, PUTX, selfId, state, cycle, &ccLock, *state, srcId, 0 /*no flags*/};
+				//printf("[78] ID=%d, name=%s\n", getParentId(wbLineAddr), parents[getParentId(wbLineAddr)]->getName());
                 respCycle = parents[getParentId(wbLineAddr)]->access(req);
             }
             break;
@@ -104,6 +106,7 @@ uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessTy
         case GETS:
             if (*state == I) {
                 uint32_t parentId = getParentId(lineAddr);
+				//printf("[lines=%d, id=%d] parentId = %d/%ld, lineAddr=%#lx\n", numLines, selfId, parentId, parents.size(), lineAddr);
                 MemReq req = {lineAddr, GETS, selfId, state, cycle, &ccLock, *state, srcId, flags};
                 uint32_t nextLevelLat = parents[parentId]->access(req) - cycle;
                 uint32_t netLat = parentRTTs[parentId];
@@ -123,6 +126,7 @@ uint64_t MESIBottomCC::processAccess(Address lineAddr, uint32_t lineId, AccessTy
                 else profGETXMissSM.inc();
                 uint32_t parentId = getParentId(lineAddr);
                 MemReq req = {lineAddr, GETX, selfId, state, cycle, &ccLock, *state, srcId, flags};
+				//printf("[130] ID=%d, name=%s\n", parentId, parents[parentId]->getName());
                 uint32_t nextLevelLat = parents[parentId]->access(req) - cycle;
                 uint32_t netLat = parentRTTs[parentId];
                 profGETNextLevelLat.inc(nextLevelLat);
@@ -191,6 +195,7 @@ uint64_t MESIBottomCC::processNonInclusiveWriteback(Address lineAddr, AccessType
 
     //info("Non-inclusive wback, forwarding");
     MemReq req = {lineAddr, type, selfId, state, cycle, &ccLock, *state, srcId, flags | MemReq::NONINCLWB};
+	//printf("[199] ID=%d, name=%s\n", getParentId(lineAddr), parents[getParentId(lineAddr)]->getName());
     uint64_t respCycle = parents[getParentId(lineAddr)]->access(req);
     return respCycle;
 }

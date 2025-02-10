@@ -124,6 +124,7 @@ class MemObject : public GlobAlloc {
     public:
         //Returns response cycle
         virtual uint64_t access(MemReq& req) = 0;
+        virtual uint64_t access(MemReq& req, int type, uint32_t data_size) { assert(false); }; // return access(req); };
         virtual void initStats(AggregateStat* parentStat) {}
         virtual const char* getName() = 0;
 };
