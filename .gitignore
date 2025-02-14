@@ -1,5 +1,6 @@
 build/opt/
 workspace/
+!workspace/run.sh
 zsim.out
 zsim.h5
 zsim-ev.h5
