@@ -201,7 +201,7 @@ static time_t startTime;
 static time_t lastHeartbeatTime;
 static uint64_t lastCycles = 0;
 
-static void printHeartbeat(GlobSimInfo* zinfo) {
+static void printHeartbeat(GlobSimInfo* zinfo, const char* outputDir) {
     uint64_t cycles = zinfo->numPhases*zinfo->phaseLength;
     time_t curTime = time(nullptr);
     time_t elapsedSecs = curTime - startTime;
@@ -214,7 +214,8 @@ static void printHeartbeat(GlobSimInfo* zinfo) {
     char hostname[256];
     gethostname(hostname, 256);
 
-    std::ofstream hb("heartbeat");
+    std::string hbPath = std::string(outputDir) + "/heartbeat";
+    std::ofstream hb(hbPath.c_str());
     hb << "Running on: " << hostname << std::endl;
     hb << "Start time: " << ctime_r(&startTime, time);
     hb << "Heartbeat time: " << ctime_r(&curTime, time);
@@ -316,14 +317,14 @@ int main(int argc, char *argv[]) {
     info("Starting zsim, built %s (rev %s)", ZSIM_BUILDDATE, ZSIM_BUILDVERSION);
     startTime = time(nullptr);
 
-    if (argc != 2) {
-        info("Usage: %s config_file", argv[0]);
+    if (argc <= 2) {
+        info("Usage: %s config_file [output_dir]", argv[0]);
         exit(1);
     }
 
     //Canonicalize paths --- because we change dirs, we deal in absolute paths
     const char* configFile = realpath(argv[1], nullptr);
-    const char* outputDir = getcwd(nullptr, 0); //already absolute
+    const char* outputDir = argv[2] ? realpath(argv[2], nullptr) : getcwd(nullptr, 0); //already absolute
 
     Config conf(configFile);
 
@@ -416,7 +417,7 @@ int main(int argc, char *argv[]) {
             info("Attached to global heap");
         }
 
-        printHeartbeat(zinfo);  // ensure we dump hostname etc on early crashes
+        printHeartbeat(zinfo, outputDir);  // ensure we dump hostname etc on early crashes
 
         int left = sleep(sleepLength);
         int secsSlept = sleepLength - left;
@@ -448,7 +449,7 @@ int main(int argc, char *argv[]) {
             } //otherwise, activeProcs == 0; we're done
         }
 
-        printHeartbeat(zinfo);
+        printHeartbeat(zinfo, outputDir);
 
         //This solves a weird race in multiprocess where SIGCHLD does not always fire...
         int cpid = -1;
@@ -469,7 +470,6 @@ int main(int argc, char *argv[]) {
         info("All children done, exiting");
     } else {
         info("Graceful termination finished, exiting");
-        exitCode = 1;
     }
     if (zinfo && zinfo->globalActiveProcs) warn("Unclean exit of %d children, termination stats were most likely not dumped", zinfo->globalActiveProcs);
     exit(exitCode);
