@@ -1,4 +1,6 @@
 build/opt/
+build/debug/
+.vscode/
 workspace/
 !workspace/run.sh
 zsim.out
