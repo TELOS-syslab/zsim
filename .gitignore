@@ -7,3 +7,14 @@ zsim-cmp.h5
 out.cfg
 heartbeat
 .sconsign.dblite
+
+**/.DS_Store
+**/.idea
+**/.vscode
+/build
+/bin
+/output
+/lib
+/contrib
+/.sconsign.dblite
+/bak*/

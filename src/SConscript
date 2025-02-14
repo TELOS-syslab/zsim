@@ -3,6 +3,7 @@
 import os
 Import("env")
 
+zsimpath = os.environ.get("ZSIMPATH", os.path.dirname(os.path.abspath('..')))
 commonSrcs = ["config.cpp", "galloc.cpp", "log.cpp", "pin_cmd.cpp"]
 harnessSrcs = ["zsim_harness.cpp", "debug_harness.cpp"]
 
@@ -22,7 +23,11 @@ libEnv["LIBPATH"] += libEnv["PINLIBPATH"]
 libEnv["LIBS"] += libEnv["PINLIBS"]
 
 # Build syscall name file
-def getSyscalls(): return os.popen("python ../../misc/list_syscalls.py").read().strip()
+
+
+def getSyscalls(): return os.popen(f"python {os.path.join(zsimpath, 'misc/list_syscalls.py')}").read().strip()
+
+
 syscallSrc = libEnv.Substfile("virt/syscall_name.cpp", "virt/syscall_name.cpp.in",
         SUBST_DICT = {"SYSCALL_NAME_LIST" : getSyscalls()})
 
