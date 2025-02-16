@@ -31,7 +31,7 @@ MemoryController::MemoryController(g_string& name, uint32_t frequency, uint32_t 
 		_granularity = config.get<uint32_t>("sys.mem.mcdram.cache_granularity");	
 		_num_ways = config.get<uint32_t>("sys.mem.mcdram.num_ways");	
 		_mcdram_type = config.get<const char *>("sys.mem.mcdram.type", "Simple");
-		_cache_size = config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024 * 1024;
+		_cache_size = config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024UL * 1024UL;
 	}
 	if (scheme == "AlloyCache") {
 		_scheme = AlloyCache;
