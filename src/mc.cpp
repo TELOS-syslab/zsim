@@ -37,8 +37,22 @@ MemoryController::MemoryController(g_string& name, uint32_t frequency, uint32_t 
 		_scheme = AlloyCache;
 		assert(_granularity == 64);
 		assert(_num_ways == 1);
-	}
-	else if (scheme == "UnisonCache") {
+	} else if (scheme == "AlloyCuckooCache") {
+		_scheme = AlloyCuckooCache;
+		is_ideal_cuckoo_ = config.get<bool>("sys.mem.ideal_cuckoo", false);
+		
+		nr_dram_cuckoo_page_ = _cache_size / map_cuckoo_page_size_;
+		nr_cache_per_cuckoo_page_ = map_cuckoo_page_size_ / 64;
+		assert(nr_dram_cuckoo_page_ > 0);
+		assert(nr_cache_per_cuckoo_page_ > 0);
+		assert(_cache_size % map_cuckoo_page_size_ == 0);
+		assert(map_cuckoo_page_size_ % 64 == 0);
+
+		assert(_granularity == 64);
+		assert(_num_ways == 1);
+
+		InitCuckooHashList();
+	} else if (scheme == "UnisonCache") {
 		assert(_granularity == 4096);
 		_scheme = UnisonCache;
 		_footprint_size = config.get<uint32_t>("sys.mem.mcdram.footprint_size");
@@ -144,7 +158,7 @@ MemoryController::MemoryController(g_string& name, uint32_t frequency, uint32_t 
 			for (uint32_t j = 0; j < _num_ways; j++)
 	   			_cache[i].ways[j].valid = false;
 		}
-		if (_scheme == AlloyCache) {
+		if (_scheme == AlloyCache || _scheme == AlloyCuckooCache) {
 			_line_placement_policy = (LinePlacementPolicy *) gm_malloc(sizeof(LinePlacementPolicy));
 			new (_line_placement_policy) LinePlacementPolicy();
    			_line_placement_policy->initialize(config);
@@ -169,6 +183,56 @@ MemoryController::MemoryController(g_string& name, uint32_t frequency, uint32_t 
    for (uint32_t i = 0; i < MAX_STEPS; i++)
       _miss_rate_trace[i] = 0;
    _num_requests = 0;
+}
+
+void MemoryController::InitCuckooHashList(void)
+{
+    cuckoo_hash_list_.resize(nr_dram_cuckoo_page_);
+    uint64_t map_ratio = 4; // FIXME 硬编码
+	uint64_t cache_block_size_ = 64;
+    
+    uint64_t dram_cuckoo_page_base_addr = 0;
+    for (uint64_t idx = 0; idx < cuckoo_hash_list_.size(); idx += 1) {
+        dram_cuckoo_page_base_addr = idx * nr_cache_per_cuckoo_page_;
+        if (is_shuffle_) {
+            cuckoo_hash_list_[idx] = new CuckooHashShuffleVector(dram_cuckoo_page_base_addr, 
+                map_cuckoo_page_size_, cache_block_size_, nr_cache_per_cuckoo_page_, map_ratio, 1,
+                cuckoo_load_ratio_, nr_shuffle_entry_);
+        } else if (is_bit_mixing_) {
+            cuckoo_hash_list_[idx] = new CuckooHashBitMixing(dram_cuckoo_page_base_addr, 
+                map_cuckoo_page_size_, cache_block_size_, nr_cache_per_cuckoo_page_, map_ratio, 1,
+                cuckoo_load_ratio_);
+        } else {
+            cuckoo_hash_list_[idx] = new CuckooHash(dram_cuckoo_page_base_addr, map_cuckoo_page_size_, 
+                cache_block_size_, nr_cache_per_cuckoo_page_, map_ratio, 1,cuckoo_load_ratio_);
+        }
+        
+    }
+}
+
+uint64_t
+MemoryController::GetCuckooDRAMPageIdx(uint64_t line_addr)
+{
+	uint64_t map_unit_cxl_idx = line_addr / nr_cache_per_cuckoo_page_;
+	uint64_t cuckoo_hash_idx = map_unit_cxl_idx % nr_dram_cuckoo_page_;	// which cuckoo hash func to use
+	assert(cuckoo_hash_idx < cuckoo_hash_list_.size());
+
+	return cuckoo_hash_idx;
+}
+
+void 
+MemoryController::CuckooUpdateCache(uint64_t dram_set_idx, uint64_t tag)
+{
+	uint64_t replace_way = 0;
+	if (_cache[dram_set_idx].ways[replace_way].valid) {
+		uint64_t replaced_tag = _cache[dram_set_idx].ways[replace_way].tag;
+		_tlb[replaced_tag].way = _num_ways;
+	}
+
+	_cache[dram_set_idx].ways[replace_way].valid = true;
+	_cache[dram_set_idx].ways[replace_way].tag = tag;
+	_cache[dram_set_idx].ways[replace_way].dirty = false;
+	_tlb[tag].way = replace_way;
 }
 
 uint64_t 
@@ -218,18 +282,75 @@ MemoryController::access(MemReq& req)
 	// TODO For UnisonCache
 	// should correctly model way accesses
 	/////////////////////////////
-	
+
 	ReqType type = (req.type == GETS || req.type == GETX)? LOAD : STORE;
 	Address address = req.lineAddr;
 	uint32_t mcdram_select = (address / 64) % _mcdram_per_mc;
 	Address mc_address = (address / 64 / _mcdram_per_mc * 64) | (address % 64); 
 	//printf("address=%ld, _mcdram_per_mc=%d, mc_address=%ld\n", address, _mcdram_per_mc, mc_address);
 	Address tag = address / (_granularity / 64);
-	uint64_t set_num = tag % _num_sets;
 	uint32_t hit_way = _num_ways;
 	//uint64_t orig_cycle = req.cycle;
 	uint64_t data_ready_cycle = req.cycle;
-    MESIState state;
+	uint64_t set_num = (uint64_t)-1;
+
+	std::vector<CuckooHash::CuckooPathEntry> cuckoo_path;
+	MESIState state;
+	if (_scheme == AlloyCuckooCache) {
+		if (line_map_info_.find(address) == line_map_info_.end()) {
+			// Cuckoo Insert
+			uint64_t cuckoo_hash_idx = GetCuckooDRAMPageIdx(address);
+
+			cuckoo_path.clear();
+			set_num = cuckoo_hash_list_[cuckoo_hash_idx]->GetTargetSetIdx(address, cuckoo_path, 0);
+			line_map_info_[address] = set_num;
+			// auto test_entry = line_map_info_.find(address);
+			// assert(test_entry != line_map_info_.end());
+			// assert(set_num == line_map_info_.find(address)->second);
+
+			// process Cuckoo Path
+			// TODO
+			if (cuckoo_path.size() > 0) {
+				if (!is_ideal_cuckoo_) {
+					req.cycle += _llc_latency * cuckoo_path.size();
+				}
+
+				for (const auto& entry: cuckoo_path) {
+					// uint64_t cur_cycle = req.cycle;
+
+					// // Update Cache Content
+					// MemReq insert_req = {mc_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+					// uint32_t size = _sram_tag? 4 : 6;
+					// _mcdram[mcdram_select]->access(insert_req, 2, size);
+					// _mc_bw_per_step += size;
+					// _numTagStore.inc();
+
+					// _numPlacement.inc();
+				
+					// // Write Back Dirty Cache Block
+					// _numDirtyEviction.inc();
+					// if (type == STORE) {
+					// 		if (_sram_tag) {
+			        // 	    	MemReq load_req = {mc_address, GETS, req.childId, &state, cur_cycle, req.childLock, req.initialState, req.srcId, req.flags};
+					// 			req.cycle = _mcdram[mcdram_select]->access(load_req, 2, 4);
+					// 			_mc_bw_per_step += 4;
+					// 			//_numTagLoad.inc();
+					// 		}
+					// 	}
+		        	//     MemReq wb_req = {_cache[set_num].ways[0].tag, PUTX, req.childId, &state, cur_cycle, req.childLock, req.initialState, req.srcId, req.flags};
+					// 	_ext_dram->access(wb_req, 2, 4);
+					// 	_ext_bw_per_step += 4;
+
+					CuckooUpdateCache(entry.target_dram_set_idx, entry.phy_cache_addr);
+				}
+			}
+		}
+		set_num = line_map_info_.find(address)->second;
+	}
+	else {
+		set_num = tag % _num_sets;
+	}
+	assert(set_num < _num_sets);
 
 	if (_scheme == CacheOnly) {
 		///////   load from mcdram
@@ -287,7 +408,7 @@ MemoryController::access(MemReq& req)
 			req.cycle += _llc_latency;
  	}
    	else {
-		assert(_scheme == AlloyCache);
+		assert(_scheme == AlloyCache || _scheme == AlloyCuckooCache);
 		if (_cache[set_num].ways[0].valid && _cache[set_num].ways[0].tag == tag && set_num >= _ds_index) 
 			hit_way = 0;
 		if (type == LOAD && set_num >= _ds_index) { 
@@ -335,7 +456,9 @@ MemoryController::access(MemReq& req)
 			if (set_num >= _ds_index)
 	         	place = _line_placement_policy->handleCacheMiss(&_cache[set_num].ways[0]);
          	replace_way = place? 0 : 1;
-      	} else if (_scheme == HMA)
+      	} else if (_scheme == AlloyCuckooCache) {
+			replace_way = 0; // Always replace for AlloyCuckooHash
+		} else if (_scheme == HMA)
          	_os_placement_policy->handleCacheAccess(tag, type);
       	else if (_scheme == Tagless) {
 			replace_way = _next_evict_idx;
@@ -347,7 +470,7 @@ MemoryController::access(MemReq& req)
 		}
 
 		/////// load from external dram
-		if (_scheme == AlloyCache) {
+		if (_scheme == AlloyCache || _scheme == AlloyCuckooCache) {
 			if (type == LOAD) {
 				if (!_sram_tag && set_num >= _ds_index)
 					req.cycle = _ext_dram->access(req, 1, 4);
@@ -405,7 +528,7 @@ MemoryController::access(MemReq& req)
       	{
 			///// mcdram replacement 
 			// TODO update the address 
-			if (_scheme == AlloyCache) { 
+			if (_scheme == AlloyCache || _scheme == AlloyCuckooCache) { 
 	            MemReq insert_req = {mc_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
 				uint32_t size = _sram_tag? 4 : 6;
 				_mcdram[mcdram_select]->access(insert_req, 2, size);
@@ -476,7 +599,7 @@ MemoryController::access(MemReq& req)
 					///////   store dirty line back to external dram
 					// Store starts after TAD is loaded.
 					// request not on critical path. 
-					if (_scheme == AlloyCache) {
+					if (_scheme == AlloyCache || _scheme == AlloyCuckooCache) {
 						if (type == STORE) {
 							if (_sram_tag) {
 			        	    	MemReq load_req = {mc_address, GETS, req.childId, &state, cur_cycle, req.childLock, req.initialState, req.srcId, req.flags};
@@ -551,7 +674,7 @@ MemoryController::access(MemReq& req)
 		}
 	} else { // cache_hit == true
 		assert(set_num >= _ds_index);
-		if (_scheme == AlloyCache) {
+		if (_scheme == AlloyCache || _scheme == AlloyCuckooCache) {
 			if (type == LOAD && _sram_tag) {
 		        MemReq read_req = {mc_address, GETX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
 				req.cycle = _mcdram[mcdram_select]->access(read_req, 0, 4);
@@ -569,7 +692,7 @@ MemoryController::access(MemReq& req)
 			req.cycle = _mcdram[mcdram_select]->access(write_req, 1, 4);
 			_mc_bw_per_step += 4;
 		}
-		if (_scheme == AlloyCache || _scheme == UnisonCache)
+		if (_scheme == AlloyCache || _scheme == UnisonCache || _scheme == AlloyCuckooCache)
 			data_ready_cycle = req.cycle;
 		_num_hit_per_step ++;
       	if (_scheme == HMA)

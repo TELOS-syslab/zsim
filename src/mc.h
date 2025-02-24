@@ -8,6 +8,11 @@
 #include "stats.h"
 #include "g_std/g_unordered_map.h"
 
+#include <unordered_map>
+#include "hash/cuckoo_hash.h"
+#include "hash/cuckoo_hash_shuffle_vector.h"
+#include "hash/cuckoo_hash_bit_mixing.h"
+
 #define MAX_STEPS 10000
 
 enum ReqType
@@ -24,7 +29,9 @@ enum Scheme
    HybridCache,
    NoCache,
    CacheOnly,
-   Tagless
+   Tagless,
+   AlloyCuckooCache,
+   TEST_SCHEME
 };
 
 class Way
@@ -209,6 +216,26 @@ private:
 	// to model the SRAM tag
 	bool 	_sram_tag;
 	uint32_t _llc_latency;
+
+	// For Cuckoo Hash
+	uint64_t map_cuckoo_page_size_ = 536870912;
+	uint64_t nr_dram_cuckoo_page_;
+	uint64_t nr_cache_per_cuckoo_page_;
+	uint64_t bucket_assoc_ = 1;
+	uint64_t cuckoo_load_ratio_ = 95;
+	bool is_ideal_cuckoo_ = false;
+
+	bool is_shuffle_ = false;
+	uint64_t nr_shuffle_entry_ = 0;
+	bool is_bit_mixing_ = false;
+
+	std::vector<CuckooHash*> cuckoo_hash_list_;
+	std::unordered_map<uint64_t, uint64_t> line_map_info_;	// phy_line_addr -> set_num
+
+	void InitCuckooHashList(void);
+	uint64_t GetCuckooDRAMPageIdx(uint64_t line_addr);
+	void CuckooUpdateCache(uint64_t dram_set_idx, uint64_t tag);
+
 public:
 	MemoryController(g_string& name, uint32_t frequency, uint32_t domain, Config& config);
 	uint64_t access(MemReq& req);
