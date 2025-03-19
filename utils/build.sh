@@ -37,6 +37,7 @@ else
 	if [ "$buildtype" = "opt" ]
 	then
 		cd $ZSIMPATH
+		rm -rf $ZSIMPATH/build/$buildtype
 		scons --o -j$NUMCPUS
 		if [ -d $ZSIMPATH/bin ]
 		then
@@ -52,6 +53,7 @@ else
 		if [ "$buildtype" = "debug" ]
 		then
 			cd $ZSIMPATH
+			rm -rf $ZSIMPATH/build/$buildtype
 			scons --d -j$NUMCPUS
 			if [ -d $ZSIMPATH/bin ]
 			then

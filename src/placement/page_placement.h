@@ -1,7 +1,8 @@
 #pragma once
 
 #include "config.h"
-#include "mc.h"
+#include "cache/cache_utils.h"
+#include "cache/cache_scheme.h"
 
 class Way;
 class Set; 
@@ -16,7 +17,7 @@ public:
 		FBR
 	};
 
-	PagePlacementPolicy(MemoryController * mc) : _mc(mc) {};
+	PagePlacementPolicy(CacheScheme * cache_scheme) : _cache_scheme(cache_scheme) {};
 	void initialize(Config & config);
 	uint32_t handleCacheMiss(Address tag, ReqType type, uint64_t set_num, Set * set, bool &counter_access);
 	void handleCacheHit(Address tag, ReqType type, uint64_t set_num, Set * set, bool &counter_access, uint32_t hit_way);
@@ -26,7 +27,7 @@ public:
 	void clearStats(); 
 	RepScheme get_placement_policy() { return _placement_policy; }
 private:
-	MemoryController * _mc;
+	CacheScheme * _cache_scheme;
 	struct ChunkEntry 
 	{
 		bool valid;

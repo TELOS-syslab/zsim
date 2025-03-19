@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "memory_hierarchy.h"
+#include "cache/cache_utils.h"
 
 using namespace std;
 
