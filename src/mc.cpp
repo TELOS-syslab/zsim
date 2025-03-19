@@ -1,13 +1,14 @@
 #include "mc.h"
+
+#include "cache/alloy.h"
+#include "cache/banshee.h"
+#include "cache/cacheonly.h"
+#include "cache/ndc.h"
+#include "cache/nocache.h"
+#include "cache/unison.h"
 #include "ddr_mem.h"
 #include "dramsim_mem_ctrl.h"
 #include "mem_ctrls.h"
-#include "cache/nocache.h"
-#include "cache/cacheonly.h"
-#include "cache/alloy.h"
-#include "cache/unison.h"
-#include "cache/banshee.h"
-#include "cache/ndc.h"
 #include "zsim.h"
 
 MemoryController::MemoryController(g_string& name, uint32_t frequency, uint32_t domain, Config& config)
@@ -50,31 +51,78 @@ MemoryController::MemoryController(g_string& name, uint32_t frequency, uint32_t 
 
     // Configure external DRAM
     _ext_type = config.get<const char*>("sys.mem.ext_dram.type", "Simple");
+    double timing_scale = config.get<double>("sys.mem.dram_timing_scale", 1);
     g_string ext_dram_name = _name + g_string("-ext");
     if (_ext_type == "Simple") {
         uint32_t latency = config.get<uint32_t>("sys.mem.ext_dram.latency", 100);
-        _ext_dram = new SimpleMemory(latency, ext_dram_name, config);
-    } else if (_ext_type == "DDR") {
-        _ext_dram = BuildDDRMemory(config, frequency, domain, ext_dram_name, 
-                                   "sys.mem.ext_dram.", 4, 1.0);
-    }
+        _ext_dram = (SimpleMemory*)gm_malloc(sizeof(SimpleMemory));
+        new (_ext_dram) SimpleMemory(latency, ext_dram_name, config);
+    } else if (_ext_type == "DDR")
+        _ext_dram = BuildDDRMemory(config, frequency, domain, ext_dram_name, "sys.mem.ext_dram.", 4, 1.0);
+    else if (_ext_type == "MD1") {
+        uint32_t latency = config.get<uint32_t>("sys.mem.ext_dram.latency", 100);
+        uint32_t bandwidth = config.get<uint32_t>("sys.mem.ext_dram.bandwidth", 6400);
+        _ext_dram = (MD1Memory*)gm_malloc(sizeof(MD1Memory));
+        new (_ext_dram) MD1Memory(64, frequency, bandwidth, latency, ext_dram_name);
+    } else if (_ext_type == "DRAMSim") {
+        uint64_t cpuFreqHz = 1000000 * frequency;
+        uint32_t capacity = config.get<uint32_t>("sys.mem.capacityMB", 16384);
+        string dramTechIni = config.get<const char*>("sys.mem.techIni");
+        string dramSystemIni = config.get<const char*>("sys.mem.systemIni");
+        string outputDir = config.get<const char*>("sys.mem.outputDir");
+        string traceName = config.get<const char*>("sys.mem.traceName", "dramsim");
+        traceName += "_ext";
+        _ext_dram = (DRAMSimMemory*)gm_malloc(sizeof(DRAMSimMemory));
+        uint32_t latency = config.get<uint32_t>("sys.mem.ext_dram.latency", 100);
+        new (_ext_dram) DRAMSimMemory(dramTechIni, dramSystemIni, outputDir, traceName, capacity, cpuFreqHz, latency, domain, name);
+    } else
+        panic("Invalid memory controller type %s", _ext_type.c_str());
 
     // Configure MCDRAM if applicable
     if (_scheme != NoCache) {
+        // Configure the MC-Dram (Timing Model)
         _mcdram_per_mc = config.get<uint32_t>("sys.mem.mcdram.mcdramPerMC", 4);
-        _mcdram = new MemObject*[_mcdram_per_mc];
+        // _mcdram = new MemObject * [_mcdram_per_mc];
+        _mcdram = (MemObject**)gm_malloc(sizeof(MemObject*) * _mcdram_per_mc);
         _mcdram_type = config.get<const char*>("sys.mem.mcdram.type", "Simple");
         for (uint32_t i = 0; i < _mcdram_per_mc; i++) {
             g_string mcdram_name = _name + g_string("-mc-") + g_string(to_string(i).c_str());
+            // g_string mcdram_name(ss.str().c_str());
             if (_mcdram_type == "Simple") {
                 uint32_t latency = config.get<uint32_t>("sys.mem.mcdram.latency", 50);
-                _mcdram[i] = new SimpleMemory(latency, mcdram_name, config);
+                _mcdram[i] = (SimpleMemory*)gm_malloc(sizeof(SimpleMemory));
+                new (_mcdram[i]) SimpleMemory(latency, mcdram_name, config);
+                //_mcdram[i] = new SimpleMemory(latency, mcdram_name, config);
             } else if (_mcdram_type == "DDR") {
-                _mcdram[i] = BuildDDRMemory(config, frequency, domain, mcdram_name, 
-                                            "sys.mem.mcdram.", 4, 1.0);
-            }
+                // XXX HACK tBL for mcdram is 1, so for data access, should multiply by 2, for tad access, should multiply by 3.
+                _mcdram[i] = BuildDDRMemory(config, frequency, domain, mcdram_name, "sys.mem.mcdram.", 4, timing_scale);
+            } else if (_mcdram_type == "MD1") {
+                uint32_t latency = config.get<uint32_t>("sys.mem.mcdram.latency", 50);
+                uint32_t bandwidth = config.get<uint32_t>("sys.mem.mcdram.bandwidth", 12800);
+                _mcdram[i] = (MD1Memory*)gm_malloc(sizeof(MD1Memory));
+                new (_mcdram[i]) MD1Memory(64, frequency, bandwidth, latency, mcdram_name);
+            } else if (_mcdram_type == "DRAMSim") {
+                uint64_t cpuFreqHz = 1000000 * frequency;
+                uint32_t capacity = config.get<uint32_t>("sys.mem.capacityMB", 16384);
+                string dramTechIni = config.get<const char*>("sys.mem.techIni");
+                string dramSystemIni = config.get<const char*>("sys.mem.systemIni");
+                string outputDir = config.get<const char*>("sys.mem.outputDir");
+                string traceName = config.get<const char*>("sys.mem.traceName");
+                traceName += "_mc";
+                traceName += to_string(i);
+                _mcdram[i] = (DRAMSimMemory*)gm_malloc(sizeof(DRAMSimMemory));
+                uint32_t latency = config.get<uint32_t>("sys.mem.mcdram.latency", 50);
+                new (_mcdram[i]) DRAMSimMemory(dramTechIni, dramSystemIni, outputDir, traceName, capacity, cpuFreqHz, latency, domain, name);
+            } else
+                panic("Invalid memory controller type %s", _mcdram_type.c_str());
         }
     }
+
+    g_string placement_scheme = config.get<const char*>("sys.mem.mcdram.placementPolicy", "LRU");
+    _num_steps = 0;
+    uint64_t cache_size = config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024 * 1024;
+    _step_length = cache_size / 64 / 10;
+    _num_requests = 0;
 }
 
 MemoryController::~MemoryController() {
@@ -92,10 +140,18 @@ MemoryController::~MemoryController() {
 uint64_t MemoryController::access(MemReq& req) {
     // Update request state
     switch (req.type) {
-        case PUTS: case PUTX: *req.state = I; break;
-        case GETS: *req.state = req.is(MemReq::NOEXCL) ? S : E; break;
-        case GETX: *req.state = M; break;
-        default: panic("Invalid request type");
+        case PUTS:
+        case PUTX:
+            *req.state = I;
+            break;
+        case GETS:
+            *req.state = req.is(MemReq::NOEXCL) ? S : E;
+            break;
+        case GETX:
+            *req.state = M;
+            break;
+        default:
+            panic("Invalid request type");
     }
     if (req.type == PUTS) return req.cycle;
 
@@ -106,8 +162,14 @@ uint64_t MemoryController::access(MemReq& req) {
         handleTraceCollection(req);
     }
 
+    _num_requests++;
     // Delegate access to CacheScheme
     uint64_t result = _cache_scheme->access(req);
+
+    // Handle bandwidth balance if needed
+    if (_num_requests % _step_length == 0) {
+        _cache_scheme->period(req);
+    }
 
     futex_unlock(&_lock);
     return result;

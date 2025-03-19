@@ -21,7 +21,13 @@ class MemoryController : public MemObject {
     uint32_t _type_trace[10000];    // Type trace buffer
     uint32_t _cur_trace_len;        // Current trace length
     uint32_t _max_trace_len;        // Maximum trace length
-	
+
+    uint64_t _num_requests;
+    bool _bw_balance;    // Bandwidth balancing flag
+    uint64_t _ds_index;  // Data structure index
+    uint32_t _num_steps;
+    uint64_t _step_length;
+
    public:
     MemObject* _ext_dram;     // External DRAM
     g_string _ext_type;       // External DRAM type

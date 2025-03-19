@@ -112,11 +112,6 @@ uint64_t NDCScheme::access(MemReq& req) {
         }
     }
 
-    // Handle bandwidth balance if needed
-    if (_num_requests % _step_length == 0) {
-        period(req);
-    }
-
     return req.cycle + latency;
 }
 

@@ -177,11 +177,6 @@ uint64_t BansheeCacheScheme::access(MemReq& req) {
         _numTagBufferFlush.inc();
     }
 
-    // Handle bandwidth balance if needed
-    if (_num_requests % _step_length == 0) {
-        period(req);
-    }
-
     return data_ready_cycle;
 }
 

@@ -161,11 +161,6 @@ uint64_t UnisonCacheScheme::access(MemReq& req) {
         _mc_bw_per_step += 4;
     }
 
-    // Handle bandwidth balance if needed
-    if (_num_requests % _step_length == 0) {
-        period(req);
-    }
-
     return data_ready_cycle;
 }
 

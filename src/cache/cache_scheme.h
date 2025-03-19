@@ -30,8 +30,7 @@ class CacheScheme {
     uint64_t _mc_bw_per_step;
     uint64_t _ext_bw_per_step;
     double _miss_rate_trace[MAX_STEPS];
-    uint32_t _num_steps;
-    uint64_t _step_length;
+    
 
    public:
     CacheScheme(Config& config, MemoryController* mc)
@@ -42,16 +41,16 @@ class CacheScheme {
         _llc_latency = config.get<uint32_t>("sys.caches.l3.latency");
         _bw_balance = config.get<bool>("sys.mem.bwBalance", false);
         _ds_index = 0;
-        _num_steps = 0;
 
         _granularity = config.get<uint32_t>("sys.mem.mcdram.cache_granularity", 64);
         _num_ways = config.get<uint32_t>("sys.mem.mcdram.num_ways", 1);
         _cache_size = config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024 * 1024;
         _num_sets = _cache_size / _num_ways / _granularity;
-        _step_length = _cache_size / 64 / 10;
-        _cache = new Set[_num_sets];
+        // _cache = new Set[_num_sets];
+        _cache = (Set*)gm_malloc(sizeof(Set) * _num_sets);
         for (uint64_t i = 0; i < _num_sets; i++) {
-            _cache[i].ways = new Way[_num_ways];
+            // _cache[i].ways = new Way[_num_ways];
+            _cache[i].ways = (Way*)gm_malloc(sizeof(Way) * _num_ways);
             _cache[i].num_ways = _num_ways;
             for (uint32_t j = 0; j < _num_ways; j++) _cache[i].ways[j].valid = false;
         }

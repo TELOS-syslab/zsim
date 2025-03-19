@@ -6,11 +6,6 @@ uint64_t NoCacheScheme::access(MemReq& req) {
     req.cycle = _mc->_ext_dram->access(req, 0, 4);
     _numLoadHit.inc();
 
-    // Handle bandwidth balance if needed
-    if (_num_requests % _step_length == 0) {
-        period(req);
-    }
-
     return req.cycle;
 }
 

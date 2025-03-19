@@ -12,11 +12,6 @@ uint64_t CacheOnlyScheme::access(MemReq& req) {
     req.lineAddr = address;
     _numLoadHit.inc();
 
-    // Handle bandwidth balance if needed
-    if (_num_requests % _step_length == 0) {
-        period(req);
-    }
-
     return req.cycle;
 }
 
