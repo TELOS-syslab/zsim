@@ -4,6 +4,7 @@
 #include "cache/cache_utils.h"
 #include "memory_hierarchy.h"
 #include "stats.h"
+#include "galloc.h"  // Add this for gm_malloc
 
 #define MAX_STEPS 10000
 class MemoryController;
@@ -52,10 +53,14 @@ class CacheScheme {
             // _cache[i].ways = new Way[_num_ways];
             _cache[i].ways = (Way*)gm_malloc(sizeof(Way) * _num_ways);
             _cache[i].num_ways = _num_ways;
-            for (uint32_t j = 0; j < _num_ways; j++) _cache[i].ways[j].valid = false;
+            for (uint32_t j = 0; j < _num_ways; j++) {
+                _cache[i].ways[j].valid = false;
+                _cache[i].ways[j].dirty = false;
+                _cache[i].ways[j].tag = 0;
+            }
         }
 
-        // Stats
+        // Stats initialization
         _num_hit_per_step = 0;
         _num_miss_per_step = 0;
         _mc_bw_per_step = 0;
@@ -65,7 +70,6 @@ class CacheScheme {
         _num_requests = 0;
     }
 
-    virtual ~CacheScheme() {}
     virtual uint64_t access(MemReq& req) = 0;  // Pure virtual method for cache access
     virtual void period(MemReq& req) = 0;
     virtual void initStats(AggregateStat* parentStat) = 0;  // Stats initialization

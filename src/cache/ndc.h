@@ -94,15 +94,6 @@ class NDCScheme : public CacheScheme {
         _victim_buffer_entries = 0;
     }
 
-    ~NDCScheme() {
-        for (uint32_t i = 0; i < _num_sets; i++) {
-            delete[] _cache[i].ways;
-        }
-        delete[] _cache;
-        delete[] _open_rows;
-        delete _victim_buffer;
-    }
-
     uint32_t selectVictim(uint64_t index) {
         // Random replacement policy (Section IV-C)
         return rand() % _num_ways;

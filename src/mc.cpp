@@ -29,24 +29,24 @@ MemoryController::MemoryController(g_string& name, uint32_t frequency, uint32_t 
     // Instantiate CacheScheme based on scheme type
     if (scheme == "AlloyCache") {
         _scheme = AlloyCache;
-        _cache_scheme = new AlloyCacheScheme(config, this);
+        _cache_scheme = new (gm_malloc(sizeof(AlloyCacheScheme))) AlloyCacheScheme(config, this);
     } else if (scheme == "UnisonCache") {
         _scheme = UnisonCache;
-        _cache_scheme = new UnisonCacheScheme(config, this);
+        _cache_scheme = new (gm_malloc(sizeof(UnisonCacheScheme))) UnisonCacheScheme(config, this);
     } else if (scheme == "BansheeCache") {
         _scheme = BansheeCache;
-        _cache_scheme = new BansheeCacheScheme(config, this);
+        _cache_scheme = new (gm_malloc(sizeof(BansheeCacheScheme))) BansheeCacheScheme(config, this);
     } else if (scheme == "NoCache") {
         _scheme = NoCache;
-        _cache_scheme = new NoCacheScheme(config, this);
+        _cache_scheme = new (gm_malloc(sizeof(NoCacheScheme))) NoCacheScheme(config, this);
     } else if (scheme == "CacheOnly") {
         _scheme = CacheOnly;
-        _cache_scheme = new CacheOnlyScheme(config, this);
+        _cache_scheme = new (gm_malloc(sizeof(CacheOnlyScheme))) CacheOnlyScheme(config, this);
     } else if (scheme == "NDC") {
         _scheme = NDC;
-        _cache_scheme = new NDCScheme(config, this);
+        _cache_scheme = new (gm_malloc(sizeof(NDCScheme))) NDCScheme(config, this);
     } else {
-        panic("Invalid cache scheme: %s", scheme.c_str());
+        panic("Invalid cache scheme %s", scheme.c_str());
     }
 
     // Configure external DRAM
@@ -123,18 +123,6 @@ MemoryController::MemoryController(g_string& name, uint32_t frequency, uint32_t 
     uint64_t cache_size = config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024 * 1024;
     _step_length = cache_size / 64 / 10;
     _num_requests = 0;
-}
-
-MemoryController::~MemoryController() {
-    delete _cache_scheme;
-    if (_scheme != NoCache) {
-        for (uint64_t i = 0; i < _cache_scheme->getNumSets(); i++)
-            delete[] _cache_scheme->getSets()[i].ways;
-        delete[] _cache_scheme->getSets();
-        for (uint32_t i = 0; i < _mcdram_per_mc; i++) delete _mcdram[i];
-        delete[] _mcdram;
-    }
-    delete _ext_dram;
 }
 
 uint64_t MemoryController::access(MemReq& req) {

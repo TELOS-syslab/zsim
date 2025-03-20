@@ -31,13 +31,17 @@ class BansheeCacheScheme : public CacheScheme {
     BansheeCacheScheme(Config& config, MemoryController* mc)
         : CacheScheme(config, mc) {
         _scheme = BansheeCache;
+        
+        // Use gm_malloc for placement policy
         _page_placement_policy = (PagePlacementPolicy*)gm_malloc(sizeof(PagePlacementPolicy));
         new (_page_placement_policy) PagePlacementPolicy(this);
         _page_placement_policy->initialize(config);
 
+        // Use gm_malloc for tag buffer
         _tag_buffer = (TagBuffer*)gm_malloc(sizeof(TagBuffer));
         new (_tag_buffer) TagBuffer(config);
     }
+
     uint64_t access(MemReq& req) override;
     void period(MemReq& req) override;
     void initStats(AggregateStat* parentStat) override;

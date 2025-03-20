@@ -27,9 +27,15 @@ PagePlacementPolicy::initialize(Config & config)
 		_chunks[i].num_misses = 0;
 		_chunks[i].entries = (ChunkEntry *) gm_malloc(sizeof(ChunkEntry) * _num_entries_per_chunk);
 		for (uint32_t j = 0; j < _num_entries_per_chunk; j++)
+		{
 			_chunks[i].entries[j].valid = false;
+			_chunks[i].entries[j].tag = 0;
+			_chunks[i].entries[j].count = 0;
+		}
 	}
-	_histogram = NULL;
+	_histogram = (uint64_t *) gm_malloc(sizeof(uint64_t) * _num_entries_per_chunk);
+	for (uint32_t i = 0; i < _num_entries_per_chunk; i++)
+		_histogram[i] = 0;
 	srand48_r(rand(), &_buffer);
 	clearStats();
 

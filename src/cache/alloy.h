@@ -23,10 +23,13 @@ class AlloyCacheScheme : public CacheScheme {
     AlloyCacheScheme(Config& config, MemoryController* mc)
         : CacheScheme(config, mc) {
         _scheme = AlloyCache;
+        
+        // Use gm_malloc for placement policy
         _line_placement_policy = (LinePlacementPolicy*)gm_malloc(sizeof(LinePlacementPolicy));
         new (_line_placement_policy) LinePlacementPolicy();
         _line_placement_policy->initialize(config);
     }
+
     uint64_t access(MemReq& req) override;
     void period(MemReq& req) override;
     void initStats(AggregateStat* parentStat) override;
