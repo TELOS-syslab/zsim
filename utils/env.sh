@@ -6,6 +6,7 @@ export NUMA_NODE=1
 export ZSIMPATH=$script_dir/..
 export PINPATH=$ZSIMPATH/lib/pin-2.14
 export DRAMSIMPATH=$ZSIMPATH/lib/dramsim2
+export DRAMSIM3PATH=$ZSIMPATH/lib/dramsim3
 export NVMAINPATH=$ZSIMPATH/lib/nvmain
 export LIBCONFIGPATH=$ZSIMPATH/lib/libconfig
 export BOOSTPATH=

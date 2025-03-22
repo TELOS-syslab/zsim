@@ -59,7 +59,7 @@ class FilterCache : public Cache {
         uint32_t numSets;
         uint32_t srcId; //should match the core
         uint32_t reqFlags;
-
+        g_vector<MemObject*> ancestors; // Bypass cache system with a pointer to send informaiton to DRAMsim3
         lock_t filterLock;
         uint64_t fGETSHit, fGETXHit;
 		// this is not an accurate tlb. It just randomize the page nums   
@@ -82,6 +82,15 @@ class FilterCache : public Cache {
             reqFlags = 0;
 			_enable_tlb = config.get<bool>("sim.enableTLB", false);
 			srand48_r((uint64_t)this, &_buffer);
+        }
+
+        // Configure No man's land delay (Rommel Sanchez et al)
+        void setAncestors(const g_vector<MemObject*>& _parents, uint32_t delayQueue){
+            ancestors.resize(_parents.size());
+            for (uint32_t p = 0; p < ancestors.size(); p++) {
+                ancestors[p] = _parents[p];
+                ancestors[p]->setDRAMsimConfiguration(delayQueue);
+            }
         }
 
         void setSourceId(uint32_t id) {
@@ -151,8 +160,10 @@ class FilterCache : public Cache {
 				} else 
 					pgnum = _tlb[vpgnum];	
 				pLineAddr = procMask | (pgnum << 6) | (vLineAddr & 0x3f); 
-			} else 
-            	pLineAddr = procMask | vLineAddr;
+			} else {
+                pLineAddr = procMask | vLineAddr;
+                futex_lock(&filterLock);
+            }
             MESIState dummyState = MESIState::I;
             MemReq req = {pLineAddr, isLoad? GETS : GETX, 0, &dummyState, curCycle, &filterLock, dummyState, srcId, reqFlags};
             uint64_t respCycle  = access(req);

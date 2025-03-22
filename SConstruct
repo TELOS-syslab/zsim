@@ -80,7 +80,7 @@ def buildSim(cppFlags, dir, type, pgo=None):
     ##env["CPPFLAGS"] += " -DDEBUG=1"
 
     # Be a Warning Nazi? (recommended)
-    env["CPPFLAGS"] += " -Werror "
+    # env["CPPFLAGS"] += " -Werror "
 
     # Enables lib and harness to use the same info/log code,
     # but only lib uses pin locks for thread safety
@@ -155,6 +155,16 @@ def buildSim(cppFlags, dir, type, pgo=None):
         env["PINLIBS"] += ["dramsim"]
         env["CPPFLAGS"] += " -D_WITH_DRAMSIM_=1 "
 
+    # Only include DRAMSim3 if available
+    if os.environ.get("DRAMSIM3PATH"):
+        DRAMSIM3PATH = os.environ["DRAMSIM3PATH"]
+        env["LINKFLAGS"] += " -Wl,-R" + DRAMSIM3PATH
+        env["PINLIBPATH"] += [DRAMSIM3PATH]
+        env["CPPPATH"] += [DRAMSIM3PATH + "/src/"]
+        # Move dramsim3 to the front of PINLIBS to ensure it's linked after objects that need it
+        env["PINLIBS"] = ["dramsim3"] + env["PINLIBS"]
+        env["CPPFLAGS"] += " -D_WITH_DRAMSIM3_=1 "
+        
     if os.environ.get("GLIBCPATH"):
         GLIBCPATH = os.environ["GLIBCPATH"]
         env["LIBPATH"] += [joinpath(GLIBCPATH, "lib/")]

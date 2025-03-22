@@ -533,6 +533,8 @@ static void PrintIp(THREADID tid, ADDRINT ip) {
 VOID Instruction(INS ins) {
     //Uncomment to print an instruction trace
     //INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)PrintIp, IARG_THREAD_ID, IARG_REG_VALUE, REG_INST_PTR, IARG_END);
+    std::string disString = INS_Disassemble(ins);
+    info("%s\xa" ,disString.c_str());
 
     if (!procTreeNode->isInFastForward() || !zinfo->ffReinstrument) {
         AFUNPTR LoadFuncPtr = (AFUNPTR) IndirectLoadSingle;
@@ -1098,6 +1100,7 @@ VOID SimEnd() {
     //per-process
 #ifdef BBL_PROFILING
     Decoder::dumpBblProfile();
+	Decoder::dumpGlobalProfile(globalProfile);
 #endif
 
     //global
@@ -1122,6 +1125,9 @@ VOID SimEnd() {
 
     //Uncomment when debugging termination races, which can be rare because they are triggered by threads of a dying process
     //sleep(5);
+	 #ifdef BBL_PROFILING
+		free(globalProfile);
+	 #endif
 
     exit(0);
 }
@@ -1461,6 +1467,9 @@ int main(int argc, char *argv[]) {
     bool masterProcess = false;
     if (procIdx == 0 && !gm_isready()) {  // process 0 can exec() without fork()ing first, so we must check gm_isready() to ensure we don't initialize twice
         masterProcess = true;
+		#ifdef BBL_PROFILING
+		  globalProfile = Decoder::instruction_profiling_init();
+		#endif
         SimInit(KnobConfigFile.Value().c_str(), KnobOutputDir.Value().c_str(), KnobShmid.Value());
     } else {
         while (!gm_isready()) usleep(1000);  // wait till proc idx 0 initializes everything
@@ -1561,6 +1570,16 @@ int main(int argc, char *argv[]) {
             EndOfPhaseActions();
             zinfo->numPhases++;
             zinfo->globPhaseCycles += zinfo->phaseLength;
+		#ifdef BBL_PROFILING
+			// rsv Maybe Ill need a lock..
+			zinfo->dumpBblcontrol++;
+			/* I'd like to have this statistics even if the simulation it is crashing, dont care by "planking" the file */
+			if ( zinfo->dumpBblcontrol > 50000 ) {
+				Decoder::dumpGlobalProfile(globalProfile );	
+				zinfo->dumpBblcontrol = 0;
+			}
+		#endif
+
         }
         info("Finished trace-driven simulation");
         SimEnd();

@@ -84,40 +84,40 @@ class DRAMSimMemory : public MemObject { //one DRAMSim controller
 //DRAMSIM does not support non-pow2 channels, so:
 // - Encapsulate multiple DRAMSim controllers
 // - Fan out addresses interleaved across banks, and change the address to a "memory address"
-class SplitAddrMemory : public MemObject {
-    private:
-        const g_vector<MemObject*> mems;
-        const g_string name;
-		uint32_t _mapping_granu;   
-    public:
-        SplitAddrMemory(const g_vector<MemObject*>& _mems, const char* _name, Config& config) 
-			: mems(_mems), name(_name) 
-		{
-			// 64 cachelines = 4096 bytes (page granularity mapping)
-			_mapping_granu = config.get<uint32_t>("sys.mem.mapGranu", 64); 
-		}
+// class SplitAddrMemory : public MemObject {
+//     private:
+//         const g_vector<MemObject*> mems;
+//         const g_string name;
+// 		uint32_t _mapping_granu;   
+//     public:
+//         SplitAddrMemory(const g_vector<MemObject*>& _mems, const char* _name, Config& config) 
+// 			: mems(_mems), name(_name) 
+// 		{
+// 			// 64 cachelines = 4096 bytes (page granularity mapping)
+// 			_mapping_granu = config.get<uint32_t>("sys.mem.mapGranu", 64); 
+// 		}
 
-        uint64_t access(MemReq& req) {
-            Address addr = req.lineAddr;
-			uint32_t mem = (addr / _mapping_granu) % mems.size();
-			Address sel1 = addr / _mapping_granu / mems.size();
-			Address sel2 = addr % _mapping_granu;
-			req.lineAddr = sel1 * _mapping_granu + sel2;  
-            //uint32_t mem = addr % mems.size();
-            //Address ctrlAddr = addr/mems.size();
-            //req.lineAddr = ctrlAddr;
-            uint64_t respCycle = mems[mem]->access(req);
-            req.lineAddr = addr;
-            return respCycle;
-        }
+//         uint64_t access(MemReq& req) {
+//             Address addr = req.lineAddr;
+// 			uint32_t mem = (addr / _mapping_granu) % mems.size();
+// 			Address sel1 = addr / _mapping_granu / mems.size();
+// 			Address sel2 = addr % _mapping_granu;
+// 			req.lineAddr = sel1 * _mapping_granu + sel2;  
+//             //uint32_t mem = addr % mems.size();
+//             //Address ctrlAddr = addr/mems.size();
+//             //req.lineAddr = ctrlAddr;
+//             uint64_t respCycle = mems[mem]->access(req);
+//             req.lineAddr = addr;
+//             return respCycle;
+//         }
 
-        const char* getName() {
-            return name.c_str();
-        }
+//         const char* getName() {
+//             return name.c_str();
+//         }
 
-        void initStats(AggregateStat* parentStat) {
-            for (auto mem : mems) mem->initStats(parentStat);
-        }
-};
+//         void initStats(AggregateStat* parentStat) {
+//             for (auto mem : mems) mem->initStats(parentStat);
+//         }
+// };
 
 #endif  // DRAMSIM_MEM_CTRL_H_
