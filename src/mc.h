@@ -40,12 +40,12 @@ class MemoryController : public MemObject {
     CacheScheme* _cache_scheme;  // Pointer to cache scheme implementation
 
     void handleTraceCollection(MemReq& req);  // Trace handling logic
-    DDRMemory* BuildDDRMemory(Config& config, uint32_t frequency, uint32_t domain,
+    DDRMemory* BuildDDRMemory(Config& config, uint32_t freqMHz, uint32_t domain,
                               g_string name, const std::string& prefix, uint32_t tBL,
                               double timing_scale);  // DDR memory builder
 
    public:
-    MemoryController(g_string& name, uint32_t frequency, uint32_t domain, Config& config);
+    MemoryController(g_string& name, uint32_t freqMHz, uint32_t domain, Config& config);
     uint64_t access(MemReq& req) override;  // MemObject interface
     const char* getName() override { return _name.c_str(); }
     void initStats(AggregateStat* parentStat) override;

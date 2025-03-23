@@ -2285,7 +2285,7 @@ BblInfo* Decoder::decodeBbl(BBL bbl, bool oooDecoding) {
             //David, let's check instructions
 			Instr instr(ins);
 			//("inst address: %lx",INS_Address(ins));
-			warn("instruction: %s", INS_Mnemonic(ins).c_str());
+			// warn("instruction: %s", INS_Mnemonic(ins).c_str());
 			//reportUnhandledCase(instr, "Debugging");
 			bool inaccurate = false;
             uint32_t prevUops = uopVec.size();

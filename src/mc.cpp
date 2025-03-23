@@ -7,11 +7,12 @@
 #include "cache/nocache.h"
 #include "cache/unison.h"
 #include "ddr_mem.h"
+#include "dramsim3_mem_ctrl.h"
 #include "dramsim_mem_ctrl.h"
 #include "mem_ctrls.h"
 #include "zsim.h"
 
-MemoryController::MemoryController(g_string& name, uint32_t frequency, uint32_t domain, Config& config)
+MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t domain, Config& config)
     : _name(name), _cur_trace_len(0), _max_trace_len(10000) {
     // Initialize tracing
     _collect_trace = config.get<bool>("sys.mem.enableTrace", false);
@@ -58,14 +59,14 @@ MemoryController::MemoryController(g_string& name, uint32_t frequency, uint32_t 
         _ext_dram = (SimpleMemory*)gm_malloc(sizeof(SimpleMemory));
         new (_ext_dram) SimpleMemory(latency, ext_dram_name, config);
     } else if (_ext_type == "DDR")
-        _ext_dram = BuildDDRMemory(config, frequency, domain, ext_dram_name, "sys.mem.ext_dram.", 4, 1.0);
+        _ext_dram = BuildDDRMemory(config, freqMHz, domain, ext_dram_name, "sys.mem.ext_dram.", 4, 1.0);
     else if (_ext_type == "MD1") {
         uint32_t latency = config.get<uint32_t>("sys.mem.ext_dram.latency", 100);
         uint32_t bandwidth = config.get<uint32_t>("sys.mem.ext_dram.bandwidth", 6400);
         _ext_dram = (MD1Memory*)gm_malloc(sizeof(MD1Memory));
-        new (_ext_dram) MD1Memory(64, frequency, bandwidth, latency, ext_dram_name);
+        new (_ext_dram) MD1Memory(64, freqMHz, bandwidth, latency, ext_dram_name);
     } else if (_ext_type == "DRAMSim") {
-        uint64_t cpuFreqHz = 1000000 * frequency;
+        uint64_t cpuFreqHz = 1000000 * freqMHz;
         uint32_t capacity = config.get<uint32_t>("sys.mem.capacityMB", 16384);
         string dramTechIni = config.get<const char*>("sys.mem.techIni");
         string dramSystemIni = config.get<const char*>("sys.mem.systemIni");
@@ -74,7 +75,15 @@ MemoryController::MemoryController(g_string& name, uint32_t frequency, uint32_t 
         traceName += "_ext";
         _ext_dram = (DRAMSimMemory*)gm_malloc(sizeof(DRAMSimMemory));
         uint32_t latency = config.get<uint32_t>("sys.mem.ext_dram.latency", 100);
-        new (_ext_dram) DRAMSimMemory(dramTechIni, dramSystemIni, outputDir, traceName, capacity, cpuFreqHz, latency, domain, name);
+        new (_ext_dram) DRAMSimMemory(dramTechIni, dramSystemIni, outputDir, traceName, capacity, cpuFreqHz, latency, domain, ext_dram_name);
+    } else if (_ext_type == "DRAMSim3") {
+        int cpuFreqMHz = freqMHz;
+        string dramIni = config.get<const char*>("sys.mem.configIni");
+        string outputDir = config.get<const char*>("sys.mem.outputDir");
+        info("Initializing DRAMSim3 with config %s, output dir %s, freq %d MHz", 
+             dramIni.c_str(), outputDir.c_str(), cpuFreqMHz);
+        _ext_dram = (DRAMSim3Memory*)gm_malloc(sizeof(DRAMSim3Memory));
+        new (_ext_dram) DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, domain, ext_dram_name);
     } else
         panic("Invalid memory controller type %s", _ext_type.c_str());
 
@@ -95,14 +104,14 @@ MemoryController::MemoryController(g_string& name, uint32_t frequency, uint32_t 
                 //_mcdram[i] = new SimpleMemory(latency, mcdram_name, config);
             } else if (_mcdram_type == "DDR") {
                 // XXX HACK tBL for mcdram is 1, so for data access, should multiply by 2, for tad access, should multiply by 3.
-                _mcdram[i] = BuildDDRMemory(config, frequency, domain, mcdram_name, "sys.mem.mcdram.", 4, timing_scale);
+                _mcdram[i] = BuildDDRMemory(config, freqMHz, domain, mcdram_name, "sys.mem.mcdram.", 4, timing_scale);
             } else if (_mcdram_type == "MD1") {
                 uint32_t latency = config.get<uint32_t>("sys.mem.mcdram.latency", 50);
                 uint32_t bandwidth = config.get<uint32_t>("sys.mem.mcdram.bandwidth", 12800);
                 _mcdram[i] = (MD1Memory*)gm_malloc(sizeof(MD1Memory));
-                new (_mcdram[i]) MD1Memory(64, frequency, bandwidth, latency, mcdram_name);
+                new (_mcdram[i]) MD1Memory(64, freqMHz, bandwidth, latency, mcdram_name);
             } else if (_mcdram_type == "DRAMSim") {
-                uint64_t cpuFreqHz = 1000000 * frequency;
+                uint64_t cpuFreqHz = 1000000 * freqMHz;
                 uint32_t capacity = config.get<uint32_t>("sys.mem.capacityMB", 16384);
                 string dramTechIni = config.get<const char*>("sys.mem.techIni");
                 string dramSystemIni = config.get<const char*>("sys.mem.systemIni");
@@ -112,7 +121,13 @@ MemoryController::MemoryController(g_string& name, uint32_t frequency, uint32_t 
                 traceName += to_string(i);
                 _mcdram[i] = (DRAMSimMemory*)gm_malloc(sizeof(DRAMSimMemory));
                 uint32_t latency = config.get<uint32_t>("sys.mem.mcdram.latency", 50);
-                new (_mcdram[i]) DRAMSimMemory(dramTechIni, dramSystemIni, outputDir, traceName, capacity, cpuFreqHz, latency, domain, name);
+                new (_mcdram[i]) DRAMSimMemory(dramTechIni, dramSystemIni, outputDir, traceName, capacity, cpuFreqHz, latency, domain, mcdram_name);
+            } else if (_mcdram_type == "DRAMSim3") {
+                int cpuFreqMHz = freqMHz;
+                string dramIni = config.get<const char*>("sys.mem.configIni");
+                string outputDir = config.get<const char*>("sys.mem.outputDir");
+                _mcdram[i] = (DRAMSim3Memory*)gm_malloc(sizeof(DRAMSim3Memory));
+                new (_mcdram[i]) DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, domain, mcdram_name);
             } else
                 panic("Invalid memory controller type %s", _mcdram_type.c_str());
         }
@@ -185,7 +200,7 @@ void MemoryController::initStats(AggregateStat* parentStat) {
     parentStat->append(memStats);
 }
 
-DDRMemory* MemoryController::BuildDDRMemory(Config& config, uint32_t frequency,
+DDRMemory* MemoryController::BuildDDRMemory(Config& config, uint32_t freqMHz,
                                             uint32_t domain, g_string name, const string& prefix, uint32_t tBL, double timing_scale) {
     uint32_t ranksPerChannel = config.get<uint32_t>(prefix + "ranksPerChannel", 4);
     uint32_t banksPerRank = config.get<uint32_t>(prefix + "banksPerRank", 8);                    // DDR3 std is 8
@@ -206,6 +221,6 @@ DDRMemory* MemoryController::BuildDDRMemory(Config& config, uint32_t frequency,
     uint32_t controllerLatency = config.get<uint32_t>(prefix + "controllerLatency", 10);  // in system cycles
 
     auto mem = (DDRMemory*)gm_malloc(sizeof(DDRMemory));
-    new (mem) DDRMemory(zinfo->lineSize, pageSize, ranksPerChannel, banksPerRank, frequency, tech, addrMapping, controllerLatency, queueDepth, maxRowHits, deferWrites, closedPage, domain, name, tBL, timing_scale);
+    new (mem) DDRMemory(zinfo->lineSize, pageSize, ranksPerChannel, banksPerRank, freqMHz, tech, addrMapping, controllerLatency, queueDepth, maxRowHits, deferWrites, closedPage, domain, name, tBL, timing_scale);
     return mem;
 }

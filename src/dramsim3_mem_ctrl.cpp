@@ -41,17 +41,17 @@
 
 using namespace std;
 
-class DRAMsim3AccEvent : public TimingEvent
+class DRAMSim3AccEvent : public TimingEvent
 {
   private:
-    DRAMsim3Memory *dram;
+    DRAMSim3Memory *dram;
     bool write;
     Address addr;
 
   public:
     uint64_t sCycle;
 
-    DRAMsim3AccEvent(DRAMsim3Memory *_dram, bool _write, Address _addr, int32_t domain) : TimingEvent(0, 0, domain), dram(_dram), write(_write), addr(_addr) {}
+    DRAMSim3AccEvent(DRAMSim3Memory *_dram, bool _write, Address _addr, int32_t domain) : TimingEvent(0, 0, domain), dram(_dram), write(_write), addr(_addr) {}
 
     bool isWrite() const
     {
@@ -70,7 +70,7 @@ class DRAMsim3AccEvent : public TimingEvent
     }
 };
 
-DRAMsim3Memory::DRAMsim3Memory(std::string& ConfigName, std::string& OutputDir,
+DRAMSim3Memory::DRAMSim3Memory(std::string& ConfigName, std::string& OutputDir,
                                int cpuFreqMHz, uint32_t _domain, const g_string &_name)
 {
     curCycle = 0;
@@ -79,7 +79,7 @@ DRAMsim3Memory::DRAMsim3Memory(std::string& ConfigName, std::string& OutputDir,
     cpuPs = 0;
     minLatency = 1;
     // NOTE: this will alloc DRAM on the heap and not the glob_heap, make sure only one process ever handles this
-    callBackFn = std::bind(&DRAMsim3Memory::DRAM_read_return_cb, this, std::placeholders::_1);
+    callBackFn = std::bind(&DRAMSim3Memory::DRAM_read_return_cb, this, std::placeholders::_1);
 
     // For some reason you cannot "new" here because zsim seems to override this "new"
     // so we have to use the helper function to init the pointer
@@ -89,17 +89,19 @@ DRAMsim3Memory::DRAMsim3Memory(std::string& ConfigName, std::string& OutputDir,
     rankMask = dramCore->GetRankMask();
     bankMask = dramCore->GetBankMask();
     rowMask = dramCore->GetRowMask();
+    info("DRAMSim3Memory: tCK=%f, channelMask=%d, rankMask=%d, bankMask=%d, rowMask=%d", tCK, channelMask, rankMask, bankMask, rowMask);
+
     dramPsPerClk = static_cast<uint64_t>(tCK*1000);
     cpuPsPerClk = static_cast<uint64_t>(1000000. / cpuFreqMHz);
     assert(cpuPsPerClk < dramPsPerClk);
     domain = _domain;
-    TickEvent<DRAMsim3Memory> *tickEv = new TickEvent<DRAMsim3Memory>(this, domain);
+    TickEvent<DRAMSim3Memory> *tickEv = new TickEvent<DRAMSim3Memory>(this, domain);
     tickEv->queue(0); // start the sim at time 0
 
     name = _name;
 }
 
-void DRAMsim3Memory::initStats(AggregateStat *parentStat)
+void DRAMSim3Memory::initStats(AggregateStat *parentStat)
 {
     AggregateStat* memStats = new AggregateStat();
     memStats->init(name.c_str(), "Memory controller stats");
@@ -110,17 +112,21 @@ void DRAMsim3Memory::initStats(AggregateStat *parentStat)
     parentStat->append(memStats);
 }
 
-// Enable sim config in DRAMsim3 side.
-void DRAMsim3Memory::setDRAMsimConfiguration(uint32_t delayQueue)
+// Enable sim config in DRAMSim3 side.
+void DRAMSim3Memory::setDRAMsimConfiguration(uint32_t delayQueue)
 {
     dramCore->setDelayQueue(delayQueue);
 } 
 
-uint64_t DRAMsim3Memory::access(MemReq& req) {
+uint64_t DRAMSim3Memory::access(MemReq& req) {
 	return access(req, 0, 1);
 }
 
-uint64_t DRAMsim3Memory::access(MemReq& req, int type, uint32_t data_size) {
+uint64_t DRAMSim3Memory::access(MemReq& req, int type, uint32_t data_size) {
+    if (!dramCore) {
+        panic("DRAMSim3: Trying to access uninitialized memory system");
+    }
+
     switch (req.type) {
         case PUTS:
         case PUTX:
@@ -143,28 +149,20 @@ uint64_t DRAMsim3Memory::access(MemReq& req, int type, uint32_t data_size) {
     if ((req.type != PUTS /*discard clean writebacks*/) && zinfo->eventRecorders[req.srcId]) {
         Address addr = req.lineAddr << lineBits;
         uint64_t hexAddr = (uint64_t)addr;
-        // DS3Request dramReq(hexAddr, req.cycle);
-        // dramReq.channel = hexAddr & channelMask;
-        // dramReq.rank = hexAddr & rankMask;
-        // dramReq.bank = hexAddr & bankMask;
-        // dramReq.row = hexAddr & rowMask;
-        // if (requestQueues.count(dramReq.channel) == 0) {
-        //     // BankQueue bankQ;
-        //     g_vector<DS3Request> bankQ;
-        //     bankQ.push_back(dramReq);
-        //     RankQueue rankQueue;
-        //     rankQueue.emplace(dramReq.bank, bankQ);
-        //     ChannelQueue chanQueue;
-        //     chanQueue.emplace(dramReq.rank, rankQueue);
-        //     requestQueues.emplace(dramReq.channel, chanQueue);
-        // }
+        if (!addr) {
+            warn("DRAMSim3: Received access to address 0");
+        }
+        
         bool isWrite = (req.type == PUTX);
-        DRAMsim3AccEvent* memEv = new (zinfo->eventRecorders[req.srcId]) DRAMsim3AccEvent(this, isWrite, addr, domain);
+        DRAMSim3AccEvent* memEv = new (zinfo->eventRecorders[req.srcId]) DRAMSim3AccEvent(this, isWrite, addr, domain);
+        if (!memEv) {
+            panic("DRAMSim3: Failed to create access event");
+        }
 		if (type == 0) { // default. The only record. 
 	        memEv->setMinStartCycle(req.cycle);
     	    TimingRecord tr = {addr, req.cycle, respCycle, req.type, memEv, memEv};
 			for (uint32_t i = 1; data_size > i * 4; i++) {
-        		DRAMsim3AccEvent* ev = new (zinfo->eventRecorders[req.srcId]) DRAMsim3AccEvent(this, isWrite, addr + 64 * i, domain);
+        		DRAMSim3AccEvent* ev = new (zinfo->eventRecorders[req.srcId]) DRAMSim3AccEvent(this, isWrite, addr + 64 * i, domain);
     	    	tr.endEvent->addChild(ev, zinfo->eventRecorders[req.srcId]);
 				tr.endEvent = ev;
 			}
@@ -179,7 +177,7 @@ uint64_t DRAMsim3Memory::access(MemReq& req, int type, uint32_t data_size) {
 			tr.type = req.type;
 			tr.endEvent = memEv;
 			for (uint32_t i = 1; data_size > i * 4; i++) {
-        		DRAMsim3AccEvent* ev = new (zinfo->eventRecorders[req.srcId]) DRAMsim3AccEvent(this, isWrite, addr + 64 * i, domain);
+        		DRAMSim3AccEvent* ev = new (zinfo->eventRecorders[req.srcId]) DRAMSim3AccEvent(this, isWrite, addr + 64 * i, domain);
     	    	tr.endEvent->addChild(ev, zinfo->eventRecorders[req.srcId]);
 				tr.endEvent = ev;
 			}	
@@ -191,9 +189,9 @@ uint64_t DRAMsim3Memory::access(MemReq& req, int type, uint32_t data_size) {
            	memEv->setMinStartCycle(tr.reqCycle);
 			assert(tr.endEvent);
 			tr.endEvent->addChild(memEv, zinfo->eventRecorders[req.srcId]);
-			DRAMsim3AccEvent * last_ev = memEv;
+			DRAMSim3AccEvent * last_ev = memEv;
 			for (uint32_t i = 1; data_size > i * 4; i++) {
-        		DRAMsim3AccEvent* ev = new (zinfo->eventRecorders[req.srcId]) DRAMsim3AccEvent(this, isWrite, addr + 64 * i, domain);
+        		DRAMSim3AccEvent* ev = new (zinfo->eventRecorders[req.srcId]) DRAMSim3AccEvent(this, isWrite, addr + 64 * i, domain);
     	    	last_ev->addChild(ev, zinfo->eventRecorders[req.srcId]);
 				last_ev = ev;
 /*				static int k = 0;
@@ -212,7 +210,7 @@ uint64_t DRAMsim3Memory::access(MemReq& req, int type, uint32_t data_size) {
     return respCycle;
 }
 
-uint32_t DRAMsim3Memory::tick(uint64_t cycle) {
+uint32_t DRAMSim3Memory::tick(uint64_t cycle) {
     cpuPs += cpuPsPerClk;
     curCycle++;
     if (cpuPs > dramPs) {
@@ -227,18 +225,18 @@ uint32_t DRAMsim3Memory::tick(uint64_t cycle) {
     return 1;
 }
 
-void DRAMsim3Memory::enqueue(DRAMsim3AccEvent *ev, uint64_t cycle) {
+void DRAMSim3Memory::enqueue(DRAMSim3AccEvent *ev, uint64_t cycle) {
     // info("[%s] %s access to %lx added at %ld, %ld inflight reqs", getName(), ev->isWrite()? "Write" : "Read", ev->getAddr(), cycle, inflightRequests.size());
     dramCore->AddTransaction(ev->getAddr(), ev->isWrite());
-    inflightRequests.insert(std::pair<Address, DRAMsim3AccEvent *>(ev->getAddr(), ev));
+    inflightRequests.insert(std::pair<Address, DRAMSim3AccEvent *>(ev->getAddr(), ev));
     ev->hold();
 
 }
 
-void DRAMsim3Memory::DRAM_read_return_cb(uint64_t addr) {
-    std::multimap<uint64_t, DRAMsim3AccEvent *>::iterator it = inflightRequests.find(addr);
+void DRAMSim3Memory::DRAM_read_return_cb(uint64_t addr) {
+    std::multimap<uint64_t, DRAMSim3AccEvent *>::iterator it = inflightRequests.find(addr);
     assert((it != inflightRequests.end()));
-    DRAMsim3AccEvent *ev = it->second;
+    DRAMSim3AccEvent *ev = it->second;
 
     uint32_t lat = curCycle + 1 - ev->sCycle;
     minLatency = lat;
@@ -257,7 +255,7 @@ void DRAMsim3Memory::DRAM_read_return_cb(uint64_t addr) {
     // info("[%s] %s access to %lx DONE at %ld (%ld cycles), %ld inflight reqs", getName(), it->second->isWrite()? "Write" : "Read", it->second->getAddr(), curCycle, curCycle-it->second->sCycle, inflightRequests.size());
 }
 
-void DRAMsim3Memory::DRAM_write_return_cb(uint64_t addr)
+void DRAMSim3Memory::DRAM_write_return_cb(uint64_t addr)
 {
     //Same as read for now
     DRAM_read_return_cb(addr);
@@ -267,26 +265,26 @@ void DRAMsim3Memory::DRAM_write_return_cb(uint64_t addr)
 
 using std::string;
 
-DRAMsim3Memory::DRAMsim3Memory(std::string& ConfigName, std::string& OutputDir,
+DRAMSim3Memory::DRAMSim3Memory(std::string& ConfigName, std::string& OutputDir,
                                int cpuFreqMHz, uint32_t _domain, const g_string &_name)
 {
-    panic("Cannot use DRAMsim3Memory, zsim was not compiled with DRAMsim3");
+    panic("Cannot use DRAMSim3Memory, zsim was not compiled with DRAMSim3");
 }
 
-void DRAMsim3Memory::initStats(AggregateStat *parentStat) { panic("???"); }
-uint64_t DRAMsim3Memory::access(MemReq &req)
+void DRAMSim3Memory::initStats(AggregateStat *parentStat) { panic("???"); }
+uint64_t DRAMSim3Memory::access(MemReq &req)
 {
     panic("???");
     return 0;
 }
-uint64_t DRAMsim3Memory::access(MemReq& req, int type, uint32_t data_size) { panic("???"); return 0; }
-uint32_t DRAMsim3Memory::tick(uint64_t cycle)
+uint64_t DRAMSim3Memory::access(MemReq& req, int type, uint32_t data_size) { panic("???"); return 0; }
+uint32_t DRAMSim3Memory::tick(uint64_t cycle)
 {
     panic("???");
     return 0;
 }
-void DRAMsim3Memory::enqueue(DRAMsim3AccEvent *ev, uint64_t cycle) { panic("???"); }
-void DRAMsim3Memory::DRAM_read_return_cb(uint64_t addr) { panic("???"); }
-void DRAMsim3Memory::DRAM_write_return_cb(uint64_t addr) { panic("???"); }
+void DRAMSim3Memory::enqueue(DRAMSim3AccEvent *ev, uint64_t cycle) { panic("???"); }
+void DRAMSim3Memory::DRAM_read_return_cb(uint64_t addr) { panic("???"); }
+void DRAMSim3Memory::DRAM_write_return_cb(uint64_t addr) { panic("???"); }
 
 #endif

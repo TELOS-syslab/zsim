@@ -371,11 +371,11 @@ MemObject* BuildMemoryController(Config& config, uint32_t lineSize, uint32_t fre
         string outputDir = config.get<const char*>("sys.mem.outputDir");
         string traceName = config.get<const char*>("sys.mem.traceName");
         mem = new DRAMSimMemory(dramTechIni, dramSystemIni, outputDir, traceName, capacity, cpuFreqHz, latency, domain, name);
-    } else if (type == "DRAMsim3") {
+    } else if (type == "DRAMSim3") {
         int cpuFreqMHz = frequency;
         string dramIni = config.get<const char*>("sys.mem.configIni");
         string outputDir = config.get<const char*>("sys.mem.outputDir");
-        mem = new DRAMsim3Memory(dramIni, outputDir, cpuFreqMHz, domain, name);
+        mem = new DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, domain, name);
     } else if (type == "Detailed") {
         // FIXME(dsm): Don't use a separate config file... see DDRMemory
         g_string mcfg = config.get<const char*>("sys.mem.paramFile", "");
@@ -813,7 +813,7 @@ static void PreInitStats() {
 // this routine will prevent this behavior by naming differently the h5 file 
 // for subsequent calls
 
- char * ZsimFileNameForStats( ZsimStatType type , string pathStr ) {
+ char * ZsimFileNameForStats(ZsimStatType type, string pathStr, bool suffix) {
 
 
 	struct stat mdFromFile;  
@@ -826,8 +826,8 @@ static void PreInitStats() {
 	infoDate = localtime(&thisDate);
 
 	if (infoDate != NULL ) { 
-		std::snprintf(date_cbuf,15, "%02d%02d%02d_%02d%02d%02d", 
-			infoDate->tm_mday, infoDate->tm_mon, infoDate->tm_year - 2000,
+		std::snprintf(date_cbuf,16, "%04d%02d%02d-%02d%02d%02d", 
+			infoDate->tm_year + 1900, infoDate->tm_mon + 1, infoDate->tm_mday,
 			infoDate->tm_hour, infoDate->tm_min, infoDate->tm_sec);
 	} else { 
 		struct timeval nixTime;
@@ -844,32 +844,38 @@ static void PreInitStats() {
 
 	switch(type) {
 	case ZSIM:
-		if (  stat("zsim.h5", &mdFromFile)  == 0 ) {
-				return gm_strdup((pathStr + "zsim_" + filenameSuffix + ".h5" ).c_str());
+		if (suffix) {
+				return gm_strdup((pathStr + "/" + "zsim_" + filenameSuffix + ".h5" ).c_str());
 		}
-		return gm_strdup((pathStr + "zsim.h5" ).c_str());
+		return gm_strdup((pathStr + "/" + "zsim.h5" ).c_str());
 	break;
 	case ZSIM_EV:
-		if (  stat("zsim-ev.h5", &mdFromFile)  == 0 ) {
-				return gm_strdup((pathStr + "zsim-ev_" + filenameSuffix + ".h5" ).c_str());
+		if (suffix) {
+				return gm_strdup((pathStr + "/" + "zsim-ev_" + filenameSuffix + ".h5" ).c_str());
 		}
-		return gm_strdup((pathStr + "zsim-ev.h5" ).c_str());
+		return gm_strdup((pathStr + "/" + "zsim-ev.h5" ).c_str());
 	break;
 	case ZSIM_CMP:
-		if (  stat("zsim-cmp.h5", &mdFromFile)  == 0 ) {
-				return gm_strdup((pathStr + "zsim-cmp_" + filenameSuffix + ".h5" ).c_str());
+		if (suffix) {
+				return gm_strdup((pathStr + "/" + "zsim-cmp_" + filenameSuffix + ".h5" ).c_str());
 		}
-		return gm_strdup((pathStr + "zsim-cmp.h5" ).c_str());
+		return gm_strdup((pathStr + "/" + "zsim-cmp.h5" ).c_str());
 	break;
 	case ZSIM_OUT:
-		if (  stat("zsim.out", &mdFromFile)  == 0 ) {
-				return gm_strdup((pathStr + "zsim_" + filenameSuffix + ".out" ).c_str());
+		if (suffix) {
+				return gm_strdup((pathStr + "/" + "zsim_" + filenameSuffix + ".out" ).c_str());
 		}
-		return gm_strdup((pathStr + "zsim.out" ).c_str());
+		return gm_strdup((pathStr + "/" + "zsim.out" ).c_str());
+	break;
+	case OUT_CFG:
+		if (suffix) {
+				return gm_strdup((pathStr + "/" + "out_" + filenameSuffix + ".cfg" ).c_str());
+		}
+		return gm_strdup((pathStr + "/" + "out.cfg" ).c_str());
 	break;
 	
 	default:
-		return gm_strdup((pathStr + "untitled.mp3").c_str());
+		return gm_strdup((pathStr + "/" + "untitled.mp3").c_str());
 	break;
 	}
 
@@ -891,10 +897,10 @@ static void PostInitStats(bool perProcessDir, Config& config) {
     const char* cmpStatsFile = gm_strdup((pathStr + "zsim-cmp.h5").c_str());
     const char* statsFile = gm_strdup((pathStr + "zsim.out").c_str());
 */
-    const char* pStatsFile   =  ZsimFileNameForStats(ZSIM, pathStr);
-    const char* evStatsFile  =  ZsimFileNameForStats(ZSIM_EV, pathStr);
-    const char* cmpStatsFile =  ZsimFileNameForStats(ZSIM_CMP, pathStr);
-    const char* statsFile    =  ZsimFileNameForStats(ZSIM_OUT, pathStr);
+    const char* pStatsFile   =  ZsimFileNameForStats(ZSIM, pathStr, true);
+    const char* evStatsFile  =  ZsimFileNameForStats(ZSIM_EV, pathStr, true);
+    const char* cmpStatsFile =  ZsimFileNameForStats(ZSIM_CMP, pathStr, true);
+    const char* statsFile    =  ZsimFileNameForStats(ZSIM_OUT, pathStr, true);
 
     if (zinfo->statsPhaseInterval) {
         const char* periodicStatsFilter = config.get<const char*>("sim.periodicStatsFilter", "");
@@ -967,7 +973,7 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
     zinfo = gm_calloc<GlobSimInfo>();
     zinfo->outputDir = gm_strdup(outputDir);
     zinfo->statsBackends = new g_vector<StatsBackend*>();
-
+    const char* outCfgFile = ZsimFileNameForStats(OUT_CFG, zinfo->outputDir, true);
     Config config(configFile);
 
     //Debugging
@@ -1120,7 +1126,7 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
 
     //Write config out
     bool strictConfig = config.get<bool>("sim.strictConfig", false); //if true, panic on unused variables
-    config.writeAndClose((string(zinfo->outputDir) + "/out.cfg").c_str(), strictConfig);
+    config.writeAndClose(outCfgFile, strictConfig);
 
     zinfo->contentionSim->postInit();
 

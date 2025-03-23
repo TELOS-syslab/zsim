@@ -59,7 +59,7 @@ class FilterCache : public Cache {
         uint32_t numSets;
         uint32_t srcId; //should match the core
         uint32_t reqFlags;
-        g_vector<MemObject*> ancestors; // Bypass cache system with a pointer to send informaiton to DRAMsim3
+        g_vector<MemObject*> ancestors; // Bypass cache system with a pointer to send informaiton to DRAMSim3
         lock_t filterLock;
         uint64_t fGETSHit, fGETXHit;
 		// this is not an accurate tlb. It just randomize the page nums   

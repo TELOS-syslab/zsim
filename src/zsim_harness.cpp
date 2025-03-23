@@ -351,7 +351,7 @@ int main(int argc, char *argv[]) {
     uint32_t removedLogfiles = 0;
     while (true) {
         std::stringstream ss;
-        ss << "zsim.log." << removedLogfiles;
+        ss << outputDir << "/zsim.log." << removedLogfiles;
         if (remove(ss.str().c_str()) != 0) break;
         removedLogfiles++;
     }

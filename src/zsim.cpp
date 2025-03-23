@@ -533,8 +533,8 @@ static void PrintIp(THREADID tid, ADDRINT ip) {
 VOID Instruction(INS ins) {
     //Uncomment to print an instruction trace
     //INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)PrintIp, IARG_THREAD_ID, IARG_REG_VALUE, REG_INST_PTR, IARG_END);
-    std::string disString = INS_Disassemble(ins);
-    info("%s\xa" ,disString.c_str());
+    // std::string disString = INS_Disassemble(ins);
+    // info("%s\xa" ,disString.c_str());
 
     if (!procTreeNode->isInFastForward() || !zinfo->ffReinstrument) {
         AFUNPTR LoadFuncPtr = (AFUNPTR) IndirectLoadSingle;

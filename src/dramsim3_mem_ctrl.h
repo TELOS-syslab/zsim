@@ -42,7 +42,7 @@ class MemorySystem;
 struct Address;
 }; // namespace dramsim3
 
-class DRAMsim3AccEvent;
+class DRAMSim3AccEvent;
 
 /*struct DS3Request
 {
@@ -57,8 +57,8 @@ class DRAMsim3AccEvent;
     uint64_t added_cycle;
 };*/
 
-class DRAMsim3Memory : public MemObject
-{ //one DRAMsim3 controller
+class DRAMSim3Memory : public MemObject
+{ //one DRAMSim3 controller
   private:
     g_string name;
     uint32_t minLatency;
@@ -66,7 +66,7 @@ class DRAMsim3Memory : public MemObject
 
     dramsim3::MemorySystem *dramCore;
 
-    std::multimap<uint64_t, DRAMsim3AccEvent *> inflightRequests;
+    std::multimap<uint64_t, DRAMSim3AccEvent *> inflightRequests;
 
     uint64_t curCycle; //processor cycle, used in callbacks
     uint64_t dramCycle;
@@ -80,7 +80,7 @@ class DRAMsim3Memory : public MemObject
     PAD();
 
   public:
-    DRAMsim3Memory(std::string &ConfigName, std::string &OutputDir,
+    DRAMSim3Memory(std::string &ConfigName, std::string &OutputDir,
                    int cpuFreqMHz, uint32_t _domain, const g_string &_name);
 
     const char *getName() { return name.c_str(); }
@@ -90,10 +90,10 @@ class DRAMsim3Memory : public MemObject
     // Record accesses
     uint64_t access(MemReq& req, int type, uint32_t data_size = 4);
     uint64_t access(MemReq &req);
-    void setDRAMsimConfiguration(uint32_t delayQueue); // Enable sim config in DRAMsim3 side.
+    void setDRAMsimConfiguration(uint32_t delayQueue); // Enable sim config in DRAMSim3 side.
     // Event-driven simulation (phase 2)
     uint32_t tick(uint64_t cycle);
-    void enqueue(DRAMsim3AccEvent *ev, uint64_t cycle);
+    void enqueue(DRAMSim3AccEvent *ev, uint64_t cycle);
 
   private:
     // if you want to use any data structure at all you in access()
@@ -130,7 +130,8 @@ class SplitAddrMemory : public MemObject {
     void setDRAMsimConfiguration(uint32_t delayQueue)
     {
         // printf("size of mems available at ZSim side is: %d \n", mems.size()); // size is two
-        mems[0]->setDRAMsimConfiguration(delayQueue);
+        // mems[0]->setDRAMsimConfiguration(delayQueue);
+        for (auto mem : mems) mem->setDRAMsimConfiguration(delayQueue);
     }
     uint64_t access(MemReq& req) {
       Address addr = req.lineAddr;
