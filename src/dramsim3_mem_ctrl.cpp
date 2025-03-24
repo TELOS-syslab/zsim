@@ -115,18 +115,96 @@ void DRAMSim3Memory::initStats(AggregateStat *parentStat)
 // Enable sim config in DRAMSim3 side.
 void DRAMSim3Memory::setDRAMsimConfiguration(uint32_t delayQueue)
 {
-    dramCore->setDelayQueue(delayQueue);
+    // dramCore->setDelayQueue(delayQueue);
 } 
 
-uint64_t DRAMSim3Memory::access(MemReq& req) {
-	return access(req, 0, 1);
+uint64_t DRAMSim3Memory::access(MemReq &req)
+{
+    return access(req, 0, 1);
+    // NOTE so you basicall cannot access draoCore->*
+    // in this function (or this phase I assume) otherwise
+    // you break some weird memory and pin will try to kill you, like, what?
+    switch (req.type)
+    {
+    case PUTS:
+    case PUTX:
+        *req.state = I;
+        break;
+    case GETS:
+        *req.state = req.is(MemReq::NOEXCL) ? S : E;
+        break;
+    case GETX:
+        *req.state = M;
+        break;
+
+    default:
+        panic("!?");
+    }
+
+    /*
+    uint64_t respCycle = req.cycle + 1;
+
+    if ((req.type != PUTS) && zinfo->eventRecorders[req.srcId])
+    {
+        Address addr = req.lineAddr << lineBits;
+        uint64_t hexAddr = (uint64_t)addr;
+        DS3Request dramReq(hexAddr, req.cycle);
+        dramReq.channel = hexAddr & channelMask;
+        dramReq.rank = hexAddr & rankMask;
+        dramReq.bank = hexAddr & bankMask;
+        dramReq.row = hexAddr & rowMask;
+        if (requestQueues.count(dramReq.channel) == 0) {
+            // BankQueue bankQ;
+            g_vector<DS3Request> bankQ;
+            bankQ.push_back(dramReq);
+            RankQueue rankQueue;
+            rankQueue.emplace(dramReq.bank, bankQ);
+            ChannelQueue chanQueue;
+            chanQueue.emplace(dramReq.rank, rankQueue);
+            requestQueues.emplace(dramReq.channel, chanQueue);
+        }
+        bool isWrite = (req.type == PUTX);
+        DRAMSim3AccEvent *memEv = new (zinfo->eventRecorders[req.srcId]) DRAMSim3AccEvent(this, isWrite, addr, domain);
+        memEv->setMinStartCycle(req.cycle);
+        TimingRecord tr = {addr, req.cycle, respCycle, req.type, memEv, memEv};
+        zinfo->eventRecorders[req.srcId]->pushRecord(tr);
+    }
+    return respCycle;
+    */
+
+    uint64_t respCycle = req.cycle ;// + minLatency;
+
+    if ((req.type != PUTS /*discard clean writebacks*/) && zinfo->eventRecorders[req.srcId])
+    {
+        Address addr = req.lineAddr << lineBits;
+        uint64_t hexAddr = (uint64_t)addr;
+        // DS3Request dramReq(hexAddr, req.cycle);
+        // dramReq.channel = hexAddr & channelMask;
+        // dramReq.rank = hexAddr & rankMask;
+        // dramReq.bank = hexAddr & bankMask;
+        // dramReq.row = hexAddr & rowMask;
+        // if (requestQueues.count(dramReq.channel) == 0) {
+        //     // BankQueue bankQ;
+        //     g_vector<DS3Request> bankQ;
+        //     bankQ.push_back(dramReq);
+        //     RankQueue rankQueue;
+        //     rankQueue.emplace(dramReq.bank, bankQ);
+        //     ChannelQueue chanQueue;
+        //     chanQueue.emplace(dramReq.rank, rankQueue);
+        //     requestQueues.emplace(dramReq.channel, chanQueue);
+        // }
+        bool isWrite = (req.type == PUTX);
+        DRAMSim3AccEvent *memEv = new (zinfo->eventRecorders[req.srcId]) DRAMSim3AccEvent(this, isWrite, addr, domain);
+        memEv->setMinStartCycle(req.cycle);
+        TimingRecord tr = {addr, req.cycle, respCycle, req.type, memEv, memEv};
+        zinfo->eventRecorders[req.srcId]->pushRecord(tr);
+    }
+
+    return respCycle + minLatency;  
 }
 
 uint64_t DRAMSim3Memory::access(MemReq& req, int type, uint32_t data_size) {
-    if (!dramCore) {
-        panic("DRAMSim3: Trying to access uninitialized memory system");
-    }
-
+    // return access(req);
     switch (req.type) {
         case PUTS:
         case PUTX:
@@ -142,37 +220,49 @@ uint64_t DRAMSim3Memory::access(MemReq& req, int type, uint32_t data_size) {
         default: panic("!?");
     }
 
-    //uint64_t respCycle = req.cycle + minLatency;
+    // uint64_t respCycle = req.cycle + minLatency;
     uint64_t respCycle = req.cycle + minLatency + data_size;
-    assert(respCycle > req.cycle);
+    // uint64_t respCycle = req.cycle;
+    // assert(respCycle > req.cycle);
 
     if ((req.type != PUTS /*discard clean writebacks*/) && zinfo->eventRecorders[req.srcId]) {
         Address addr = req.lineAddr << lineBits;
         uint64_t hexAddr = (uint64_t)addr;
-        if (!addr) {
-            warn("DRAMSim3: Received access to address 0");
-        }
-        
+        /* 
+        bool isWrite = (req.type == PUTX);
+        DRAMSim3AccEvent *memEv = new (zinfo->eventRecorders[req.srcId]) DRAMSim3AccEvent(this, isWrite, addr, domain);
+        memEv->setMinStartCycle(req.cycle);
+        TimingRecord tr = {addr, req.cycle, respCycle, req.type, memEv, memEv};
+        zinfo->eventRecorders[req.srcId]->pushRecord(tr);
+        */ 
         bool isWrite = (req.type == PUTX);
         DRAMSim3AccEvent* memEv = new (zinfo->eventRecorders[req.srcId]) DRAMSim3AccEvent(this, isWrite, addr, domain);
-        if (!memEv) {
-            panic("DRAMSim3: Failed to create access event");
-        }
 		if (type == 0) { // default. The only record. 
-	        memEv->setMinStartCycle(req.cycle);
-    	    TimingRecord tr = {addr, req.cycle, respCycle, req.type, memEv, memEv};
-			for (uint32_t i = 1; data_size > i * 4; i++) {
-        		DRAMSim3AccEvent* ev = new (zinfo->eventRecorders[req.srcId]) DRAMSim3AccEvent(this, isWrite, addr + 64 * i, domain);
-    	    	tr.endEvent->addChild(ev, zinfo->eventRecorders[req.srcId]);
-				tr.endEvent = ev;
-			}
-        	zinfo->eventRecorders[req.srcId]->pushRecord(tr);
+            TimingRecord tr;
+            if (zinfo->eventRecorders[req.srcId]->hasRecord()) {
+                tr = zinfo->eventRecorders[req.srcId]->popRecord();
+                assert(tr.endEvent);
+                memEv->setMinStartCycle(tr.reqCycle);
+                tr.endEvent->addChild(memEv, zinfo->eventRecorders[req.srcId]);
+                tr.type = req.type;
+                tr.endEvent = memEv;
+            } else {
+                memEv->setMinStartCycle(req.cycle);
+                tr = {addr, req.cycle, respCycle, req.type, memEv, memEv};
+            }
+            for (uint32_t i = 1; data_size > i * 4; i++) {
+                DRAMSim3AccEvent* ev = new (zinfo->eventRecorders[req.srcId]) DRAMSim3AccEvent(this, isWrite, addr + 64 * i, domain);
+                tr.endEvent->addChild(ev, zinfo->eventRecorders[req.srcId]);
+                tr.endEvent = ev;
+            }
+            assert(!zinfo->eventRecorders[req.srcId]->hasRecord());
+            zinfo->eventRecorders[req.srcId]->pushRecord(tr);
 		} else if (type == 1) { // append the current event to the end of the previous one
        	 	TimingRecord tr = zinfo->eventRecorders[req.srcId]->popRecord();
            	memEv->setMinStartCycle(tr.reqCycle);
 			assert(tr.endEvent);
 			tr.endEvent->addChild(memEv, zinfo->eventRecorders[req.srcId]);
-			// XXX when to update respCycle 
+            // XXX when to update respCycle 
 			//tr.respCycle = respCycle;
 			tr.type = req.type;
 			tr.endEvent = memEv;
@@ -194,13 +284,8 @@ uint64_t DRAMSim3Memory::access(MemReq& req, int type, uint32_t data_size) {
         		DRAMSim3AccEvent* ev = new (zinfo->eventRecorders[req.srcId]) DRAMSim3AccEvent(this, isWrite, addr + 64 * i, domain);
     	    	last_ev->addChild(ev, zinfo->eventRecorders[req.srcId]);
 				last_ev = ev;
-/*				static int k = 0;
-				k ++;
-				if (k % 10000 == 0)
-					printf("k=%d, i=%d. data_size=%d\n", k++, i, data_size);
-					*/
 			}
-			//tr.respCycle = respCycle;
+            //tr.respCycle = respCycle;
 			tr.type = req.type;
        	 	zinfo->eventRecorders[req.srcId]->pushRecord(tr);
 		}
@@ -230,7 +315,6 @@ void DRAMSim3Memory::enqueue(DRAMSim3AccEvent *ev, uint64_t cycle) {
     dramCore->AddTransaction(ev->getAddr(), ev->isWrite());
     inflightRequests.insert(std::pair<Address, DRAMSim3AccEvent *>(ev->getAddr(), ev));
     ev->hold();
-
 }
 
 void DRAMSim3Memory::DRAM_read_return_cb(uint64_t addr) {

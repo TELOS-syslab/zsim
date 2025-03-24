@@ -14,6 +14,7 @@ heartbeat
 /build
 /bin
 /output
+/results
 /lib
 /contrib
 /.sconsign.dblite

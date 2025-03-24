@@ -3,6 +3,7 @@
 #include "cache/alloy.h"
 #include "cache/banshee.h"
 #include "cache/cacheonly.h"
+#include "cache/copycache.h"
 #include "cache/ndc.h"
 #include "cache/nocache.h"
 #include "cache/unison.h"
@@ -43,6 +44,9 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
     } else if (scheme == "CacheOnly") {
         _scheme = CacheOnly;
         _cache_scheme = new (gm_malloc(sizeof(CacheOnlyScheme))) CacheOnlyScheme(config, this);
+    } else if (scheme == "CopyCache") {
+        _scheme = CopyCache;
+        _cache_scheme = new (gm_malloc(sizeof(CopyCacheScheme))) CopyCacheScheme(config, this);
     } else if (scheme == "NDC") {
         _scheme = NDC;
         _cache_scheme = new (gm_malloc(sizeof(NDCScheme))) NDCScheme(config, this);

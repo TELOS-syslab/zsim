@@ -44,7 +44,7 @@ struct Address;
 
 class DRAMSim3AccEvent;
 
-/*struct DS3Request
+struct DS3Request
 {
     DS3Request(uint64_t addr, uint64_t cycle) : 
         addr(addr), channel(0), rank(0), bank(0), row(0),
@@ -55,7 +55,7 @@ class DRAMSim3AccEvent;
     uint64_t bank;
     uint64_t row;
     uint64_t added_cycle;
-};*/
+};
 
 class DRAMSim3Memory : public MemObject
 { //one DRAMSim3 controller
@@ -98,10 +98,10 @@ class DRAMSim3Memory : public MemObject
   private:
     // if you want to use any data structure at all you in access()
     // it has to be on the zsim side
-   // using BankQueue = g_vector<DS3Request>;
-   // using RankQueue = g_unordered_map<uint64_t, BankQueue>;
-   // using ChannelQueue = g_unordered_map<uint64_t, RankQueue>;
-   // g_unordered_map<uint64_t, ChannelQueue> requestQueues;
+   using BankQueue = g_vector<DS3Request>;
+   using RankQueue = g_unordered_map<uint64_t, BankQueue>;
+   using ChannelQueue = g_unordered_map<uint64_t, RankQueue>;
+   g_unordered_map<uint64_t, ChannelQueue> requestQueues;
 
     uint64_t channelMask, rankMask, bankMask, rowMask;
     void DRAM_read_return_cb(uint64_t addr);
@@ -130,8 +130,8 @@ class SplitAddrMemory : public MemObject {
     void setDRAMsimConfiguration(uint32_t delayQueue)
     {
         // printf("size of mems available at ZSim side is: %d \n", mems.size()); // size is two
-        // mems[0]->setDRAMsimConfiguration(delayQueue);
-        for (auto mem : mems) mem->setDRAMsimConfiguration(delayQueue);
+        mems[0]->setDRAMsimConfiguration(delayQueue);
+        // for (auto mem : mems) mem->setDRAMsimConfiguration(delayQueue);
     }
     uint64_t access(MemReq& req) {
       Address addr = req.lineAddr;

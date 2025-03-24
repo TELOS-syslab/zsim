@@ -11,6 +11,7 @@ enum Scheme {
     BansheeCache,
     NoCache,
     CacheOnly,
+    CopyCache,
     NDC,
     UNKNOWN
 };
