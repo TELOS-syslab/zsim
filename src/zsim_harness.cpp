@@ -38,6 +38,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <errno.h>
 #include "config.h"
 #include "constants.h"
 #include "debug_harness.h"
@@ -306,6 +309,34 @@ void LaunchProcess(uint32_t procIdx) {
     }
 }
 
+int removeDirectory(const char* path) {
+    DIR* dir = opendir(path);
+    if (dir == nullptr) {
+        return -1;
+    }
+
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        // Skip . and ..
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+
+        std::string fullPath = std::string(path) + "/" + entry->d_name;
+        struct stat statbuf;
+        if (stat(fullPath.c_str(), &statbuf) == -1) {
+            continue;
+        }
+
+        if (S_ISDIR(statbuf.st_mode)) {
+            removeDirectory(fullPath.c_str());
+        } else {
+            unlink(fullPath.c_str());
+        }
+    }
+    closedir(dir);
+    return rmdir(path);
+}
 
 int main(int argc, char *argv[]) {
     if (argc == 2 && std::string(argv[1]) == "-v") {
@@ -356,6 +387,21 @@ int main(int argc, char *argv[]) {
         removedLogfiles++;
     }
     if (removedLogfiles) info("Removed %d old logfiles", removedLogfiles);
+
+    // Convert outputDir to string and create the mem path
+    std::string memPath = std::string(outputDir) + "/mem";
+    
+    // Check if directory exists and remove it recursively if it does
+    if (access(memPath.c_str(), F_OK) != -1) {
+        if (removeDirectory(memPath.c_str()) != 0) {
+            warn("Could not remove directory %s: %s", memPath.c_str(), strerror(errno));
+        }
+    }
+    
+    // Create directory with permissions
+    if (mkdir(memPath.c_str(), 0777) != 0) {
+        panic("Could not create directory %s: %s", memPath.c_str(), strerror(errno));
+    }
 
     uint32_t gmSize = conf.get<uint32_t>("sim.gmMBytes", (1<<10) /*default 1024MB*/);
     info("Creating global segment, %d MBs", gmSize);

@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <sys/time.h>
 #include "constants.h"
+#include "mem_ctrls.h"
 #include "debug.h"
 #include "locks.h"
 #include "pad.h"
@@ -187,6 +188,9 @@ struct GlobSimInfo {
     // Trace-driven simulation (no cores)
     bool traceDriven;
     TraceDriver* traceDriver;
+
+    //Memory controllers
+    g_vector<MemObject*> memControllers; // Add this field to store memory controllers
 };
 
 

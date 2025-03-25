@@ -537,6 +537,9 @@ static void InitSystem(Config& config) {
         }
     }
 
+    // Store memory controllers in zinfo
+    zinfo->memControllers = mems;
+
     //Connect everything
     bool printHierarchy = config.get<bool>("sim.printHierarchy", false);
 
@@ -813,63 +816,106 @@ static void PreInitStats() {
 // this routine will prevent this behavior by naming differently the h5 file 
 // for subsequent calls
 
- char * ZsimFileNameForStats(ZsimStatType type, string pathStr, bool suffix) {
+void mkdirIfNotExist(string path)
+{
+	struct stat stat_buf;
+	// check if the directory exists
+	if (stat(path.c_str(), &stat_buf) != 0) // nonzero return value on error, check errno
+	{
+		if (errno == ENOENT) 
+		{
+//			DEBUG("\t directory doesn't exist, trying to create ...");
+
+			// set permissions dwxr-xr-x on the results directories
+			mode_t mode = (S_IXOTH | S_IXGRP | S_IXUSR | S_IROTH | S_IRGRP | S_IRUSR | S_IWUSR) ;
+			if (mkdir(path.c_str(), mode) != 0)
+			{
+				panic("Error Has occurred while trying to make directory: %s", path.c_str());
+			}
+		}
+		else
+		{
+			panic("Something else when wrong: %s", path.c_str()); 
+		}
+	}
+	else // directory already exists
+	{
+		if (!S_ISDIR(stat_buf.st_mode))
+		{
+            panic("%s is not a directory", path.c_str());
+		}
+	}
+}
+
+ char * ZsimFileNameForStats(ZsimStatType type, string pathStr, bool suffix, string suffix_str="") {
 
 
 	struct stat mdFromFile;  
 	time_t thisDate;
 	struct tm *infoDate;
 
-	char date_cbuf[16];
-	
-	thisDate = time(NULL);
-	infoDate = localtime(&thisDate);
+    if (suffix_str.empty()) {
+        char date_cbuf[16];
+        thisDate = time(NULL);
+        infoDate = localtime(&thisDate);
+        if (infoDate != NULL ) { 
+            std::snprintf(date_cbuf,16, "%04d%02d%02d-%02d%02d", 
+                infoDate->tm_year + 1900, infoDate->tm_mon + 1, infoDate->tm_mday,
+                infoDate->tm_hour, infoDate->tm_min);
+        } else { 
+            struct timeval nixTime;
 
-	if (infoDate != NULL ) { 
-		std::snprintf(date_cbuf,16, "%04d%02d%02d-%02d%02d%02d", 
-			infoDate->tm_year + 1900, infoDate->tm_mon + 1, infoDate->tm_mday,
-			infoDate->tm_hour, infoDate->tm_min, infoDate->tm_sec);
-	} else { 
-		struct timeval nixTime;
-
-		gettimeofday(&nixTime, NULL);
-		// wont check the value but another validation wont hurt.
-		std::snprintf(date_cbuf,15, "%ld", nixTime.tv_sec );
-	
-	}
-
-	printf("Suffix: %s\xa", date_cbuf);
-	string filenameSuffix(&date_cbuf[0]);
-
+            gettimeofday(&nixTime, NULL);
+            // wont check the value but another validation wont hurt.
+            std::snprintf(date_cbuf,15, "%ld", nixTime.tv_sec );
+        
+        }
+        printf("Suffix: %s\xa", date_cbuf);
+        string filenameSuffix(&date_cbuf[0]);
+        suffix_str = filenameSuffix;
+    } else {
+        string filenameSuffix(suffix_str);
+        suffix_str = filenameSuffix;
+    }
+    
+    if (suffix)
+        mkdirIfNotExist(pathStr + "/" + suffix_str);
+    else
+        mkdirIfNotExist(pathStr);
 
 	switch(type) {
 	case ZSIM:
 		if (suffix) {
-				return gm_strdup((pathStr + "/" + "zsim_" + filenameSuffix + ".h5" ).c_str());
+			// return gm_strdup((pathStr + "/" + "zsim_" + suffix_str + ".h5" ).c_str());
+            return gm_strdup((pathStr + "/" + suffix_str + "/" + "zsim.h5" ).c_str());
 		}
 		return gm_strdup((pathStr + "/" + "zsim.h5" ).c_str());
 	break;
 	case ZSIM_EV:
 		if (suffix) {
-				return gm_strdup((pathStr + "/" + "zsim-ev_" + filenameSuffix + ".h5" ).c_str());
+			// return gm_strdup((pathStr + "/" + "zsim-ev_" + suffix_str + ".h5" ).c_str());
+            return gm_strdup((pathStr + "/" + suffix_str + "/" + "zsim-ev.h5" ).c_str());
 		}
 		return gm_strdup((pathStr + "/" + "zsim-ev.h5" ).c_str());
 	break;
 	case ZSIM_CMP:
 		if (suffix) {
-				return gm_strdup((pathStr + "/" + "zsim-cmp_" + filenameSuffix + ".h5" ).c_str());
+			// return gm_strdup((pathStr + "/" + "zsim-cmp_" + suffix_str + ".h5" ).c_str());
+            return gm_strdup((pathStr + "/" + suffix_str + "/" + "zsim-cmp.h5" ).c_str());
 		}
 		return gm_strdup((pathStr + "/" + "zsim-cmp.h5" ).c_str());
 	break;
 	case ZSIM_OUT:
 		if (suffix) {
-				return gm_strdup((pathStr + "/" + "zsim_" + filenameSuffix + ".out" ).c_str());
+			// return gm_strdup((pathStr + "/" + "zsim_" + suffix_str + ".out" ).c_str());
+            return gm_strdup((pathStr + "/" + suffix_str + "/" + "zsim.out" ).c_str());
 		}
 		return gm_strdup((pathStr + "/" + "zsim.out" ).c_str());
 	break;
 	case OUT_CFG:
 		if (suffix) {
-				return gm_strdup((pathStr + "/" + "out_" + filenameSuffix + ".cfg" ).c_str());
+			// return gm_strdup((pathStr + "/" + "out_" + suffix_str + ".cfg" ).c_str());
+            return gm_strdup((pathStr + "/" + suffix_str + "/" + "out.cfg" ).c_str());
 		}
 		return gm_strdup((pathStr + "/" + "out.cfg" ).c_str());
 	break;

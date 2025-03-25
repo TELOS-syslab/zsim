@@ -14,10 +14,10 @@ export BOOSTPATH=
 export HDF5PATH=
 export GLIBCPATH=
 
-export LD_LIBRARY_PATH=$PINPATH/intel64/lib:$PINPATH/intel64/runtime:$PINPATH/intel64/lib:$PINPATH/intel64/lib-ext:$BOOSTPATH/lib:$HDF5PATH/lib:$LIBCONFIGPATH/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/lib
-export LIBRARY_PATH=$BOOSTPATH/lib:$HDF5PATH/lib:$LIBCONFIGPATH/lib
-export INCLUDE=$BOOSTPATH/include:$HDF5PATH/include:$LIBCONFIGPATH/include
-export CPLUS_INCLUDE_PATH=$BOOSTPATH/include:$HDF5PATH/include:$LIBCONFIGPATH/include
+export LD_LIBRARY_PATH=.:$PINPATH/intel64/lib:$PINPATH/intel64/runtime:$PINPATH/intel64/lib:$PINPATH/intel64/lib-ext:$BOOSTPATH/lib:$HDF5PATH/lib:$LIBCONFIGPATH/lib:/usr/lib/x86_64-linux-gnu:/usr/local/lib:/usr/lib
+export LIBRARY_PATH=.:$BOOSTPATH/lib:$HDF5PATH/lib:$LIBCONFIGPATH/lib
+export INCLUDE=.:$BOOSTPATH/include:$HDF5PATH/include:$LIBCONFIGPATH/include
+export CPLUS_INCLUDE_PATH=.:$BOOSTPATH/include:$HDF5PATH/include:$LIBCONFIGPATH/include
 
 nrun() {
     numactl --cpunodebind=$NUMA_NODE --membind=$NUMA_NODE "$@"

@@ -71,20 +71,20 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
         new (_ext_dram) MD1Memory(64, freqMHz, bandwidth, latency, ext_dram_name);
     } else if (_ext_type == "DRAMSim") {
         uint64_t cpuFreqHz = 1000000 * freqMHz;
-        uint32_t capacity = config.get<uint32_t>("sys.mem.capacityMB", 16384);
-        string dramTechIni = config.get<const char*>("sys.mem.techIni");
-        string dramSystemIni = config.get<const char*>("sys.mem.systemIni");
-        string outputDir = config.get<const char*>("sys.mem.outputDir");
-        string traceName = config.get<const char*>("sys.mem.traceName", "dramsim");
+        uint32_t capacity = config.get<uint32_t>("sys.mem.ext_dram.capacityMB", 16384);
+        string dramTechIni = config.get<const char*>("sys.mem.ext_dram.techIni");
+        string dramSystemIni = config.get<const char*>("sys.mem.ext_dram.systemIni");
+        string outputDir = config.get<const char*>("sys.mem.ext_dram.outputDir");
+        string traceName = config.get<const char*>("sys.mem.ext_dram.traceName", "dramsim");
         traceName += "_ext";
         _ext_dram = (DRAMSimMemory*)gm_malloc(sizeof(DRAMSimMemory));
         uint32_t latency = config.get<uint32_t>("sys.mem.ext_dram.latency", 100);
         new (_ext_dram) DRAMSimMemory(dramTechIni, dramSystemIni, outputDir, traceName, capacity, cpuFreqHz, latency, domain, ext_dram_name);
     } else if (_ext_type == "DRAMSim3") {
         int cpuFreqMHz = freqMHz;
-        string dramIni = config.get<const char*>("sys.mem.configIni");
-        string outputDir = config.get<const char*>("sys.mem.outputDir");
-        info("Initializing DRAMSim3 with config %s, output dir %s, freq %d MHz", 
+        string dramIni = config.get<const char*>("sys.mem.ext_dram.configIni");
+        string outputDir = config.get<const char*>("sys.mem.ext_dram.outputDir");
+        info("Initializing DRAMSim3 with config %s, output dir %s, freq %d MHz",
              dramIni.c_str(), outputDir.c_str(), cpuFreqMHz);
         _ext_dram = (DRAMSim3Memory*)gm_malloc(sizeof(DRAMSim3Memory));
         new (_ext_dram) DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, domain, ext_dram_name);
@@ -116,11 +116,11 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
                 new (_mcdram[i]) MD1Memory(64, freqMHz, bandwidth, latency, mcdram_name);
             } else if (_mcdram_type == "DRAMSim") {
                 uint64_t cpuFreqHz = 1000000 * freqMHz;
-                uint32_t capacity = config.get<uint32_t>("sys.mem.capacityMB", 16384);
-                string dramTechIni = config.get<const char*>("sys.mem.techIni");
-                string dramSystemIni = config.get<const char*>("sys.mem.systemIni");
-                string outputDir = config.get<const char*>("sys.mem.outputDir");
-                string traceName = config.get<const char*>("sys.mem.traceName");
+                uint32_t capacity = config.get<uint32_t>("sys.mem.mcdram.capacityMB", 16384);
+                string dramTechIni = config.get<const char*>("sys.mem.mcdram.techIni");
+                string dramSystemIni = config.get<const char*>("sys.mem.mcdram.systemIni");
+                string outputDir = config.get<const char*>("sys.mem.mcdram.outputDir");
+                string traceName = config.get<const char*>("sys.mem.mcdram.traceName");
                 traceName += "_mc";
                 traceName += to_string(i);
                 _mcdram[i] = (DRAMSimMemory*)gm_malloc(sizeof(DRAMSimMemory));
@@ -128,8 +128,8 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
                 new (_mcdram[i]) DRAMSimMemory(dramTechIni, dramSystemIni, outputDir, traceName, capacity, cpuFreqHz, latency, domain, mcdram_name);
             } else if (_mcdram_type == "DRAMSim3") {
                 int cpuFreqMHz = freqMHz;
-                string dramIni = config.get<const char*>("sys.mem.configIni");
-                string outputDir = config.get<const char*>("sys.mem.outputDir");
+                string dramIni = config.get<const char*>("sys.mem.mcdram.configIni");
+                string outputDir = config.get<const char*>("sys.mem.mcdram.outputDir");
                 _mcdram[i] = (DRAMSim3Memory*)gm_malloc(sizeof(DRAMSim3Memory));
                 new (_mcdram[i]) DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, domain, mcdram_name);
             } else
@@ -202,6 +202,11 @@ void MemoryController::initStats(AggregateStat* parentStat) {
     _ext_dram->initStats(memStats);
     for (uint32_t i = 0; i < _mcdram_per_mc; i++) _mcdram[i]->initStats(memStats);
     parentStat->append(memStats);
+}
+
+void MemoryController::printStats() {
+    _ext_dram->printStats();
+    for (uint32_t i = 0; i < _mcdram_per_mc; i++) _mcdram[i]->printStats();
 }
 
 DDRMemory* MemoryController::BuildDDRMemory(Config& config, uint32_t freqMHz,

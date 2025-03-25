@@ -91,6 +91,7 @@ class DRAMSim3Memory : public MemObject
     uint64_t access(MemReq& req, int type, uint32_t data_size = 4);
     uint64_t access(MemReq &req);
     void setDRAMsimConfiguration(uint32_t delayQueue); // Enable sim config in DRAMSim3 side.
+    void printStats() override;
     // Event-driven simulation (phase 2)
     uint32_t tick(uint64_t cycle);
     void enqueue(DRAMSim3AccEvent *ev, uint64_t cycle);
@@ -153,6 +154,10 @@ class SplitAddrMemory : public MemObject {
 
     void initStats(AggregateStat* parentStat) {
         for (auto mem : mems) mem->initStats(parentStat);
+    }
+
+    void printStats() override {
+      for (auto mem : mems) mem->printStats();
     }
 };
 

@@ -49,7 +49,8 @@ class MemoryController : public MemObject {
     uint64_t access(MemReq& req) override;  // MemObject interface
     const char* getName() override { return _name.c_str(); }
     void initStats(AggregateStat* parentStat) override;
-
+    void printStats() override;
+    
     // Accessors for CacheScheme and memory components
     Scheme getScheme() { return _scheme; };
     CacheScheme* getCacheScheme() { return _cache_scheme; }

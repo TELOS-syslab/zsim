@@ -61,6 +61,8 @@
 #include "stats.h"
 #include "trace_driver.h"
 #include "virt/virt.h"
+#include "mc.h"
+#include "dramsim3_mem_ctrl.h"
 
 //#include <signal.h> //can't include this, conflicts with PIN's
 
@@ -1119,6 +1121,11 @@ VOID SimEnd() {
         zinfo->trigger = 20000;
         for (StatsBackend* backend : *(zinfo->statsBackends)) backend->dump(false /*unbuffered, write out*/);
         for (AccessTraceWriter* t : *(zinfo->traceWriters)) t->dump(false);  // flushes trace writer
+
+        // Print DRAMSim3 stats
+        for (MemObject* mem : zinfo->memControllers) {
+            mem->printStats();
+        }
 
         if (zinfo->sched) zinfo->sched->notifyTermination();
     }
