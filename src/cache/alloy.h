@@ -1,7 +1,7 @@
 #ifndef _ALLOY_CACHE_SCHEME_H_
 #define _ALLOY_CACHE_SCHEME_H_
 
-#include "cache_scheme.h"
+#include "cache/cache_scheme.h"
 #include "placement/line_placement.h"
 #include "stats.h"
 

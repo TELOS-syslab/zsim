@@ -1,7 +1,7 @@
 #ifndef _BANSHEE_CACHE_SCHEME_H_
 #define _BANSHEE_CACHE_SCHEME_H_
 
-#include "cache_scheme.h"
+#include "cache/cache_scheme.h"
 #include "g_std/g_string.h"
 #include "g_std/g_unordered_map.h"
 #include "mc.h"  // For TagBuffer

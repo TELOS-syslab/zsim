@@ -2,7 +2,7 @@
 #define _UNISON_CACHE_SCHEME_H_
 
 #include "cache/cache_utils.h"
-#include "cache_scheme.h"
+#include "cache/cache_scheme.h"
 #include "g_std/g_string.h"
 #include "g_std/g_unordered_map.h"
 #include "placement/page_placement.h"

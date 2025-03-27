@@ -1,7 +1,7 @@
 #ifndef _NO_CACHE_SCHEME_H_
 #define _NO_CACHE_SCHEME_H_
 
-#include "cache_scheme.h"
+#include "cache/cache_scheme.h"
 
 class NoCacheScheme : public CacheScheme {
    private:

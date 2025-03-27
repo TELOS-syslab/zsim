@@ -1,7 +1,7 @@
 #ifndef _COPY_CACHE_SCHEME_H_
 #define _COPY_CACHE_SCHEME_H_
 
-#include "cache_scheme.h"
+#include "cache/cache_scheme.h"
 #include "stats.h"
 
 class CopyCacheScheme : public CacheScheme {

@@ -1,7 +1,7 @@
 #ifndef _CACHE_ONLY_SCHEME_H_
 #define _CACHE_ONLY_SCHEME_H_
 
-#include "cache_scheme.h"
+#include "cache/cache_scheme.h"
 #include "stats.h"
 
 class CacheOnlyScheme : public CacheScheme {

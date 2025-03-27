@@ -15,7 +15,7 @@ heartbeat
 /bin
 /output
 /results
-# /lib
+/lib
 /contrib
 /.sconsign.dblite
 /bak*/

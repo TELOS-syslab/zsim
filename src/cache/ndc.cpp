@@ -1,118 +1,151 @@
 #include "cache/ndc.h"
-
-#include <cstdint>
-
-#include "cache_scheme.h"  // For CacheScheme base class
-#include "g_std/g_vector.h"
-#include "galloc.h"  // For GlobAlloc
 #include "mc.h"
-#include "memory_hierarchy.h"  // For Address type
-#include "stats.h"             // For AggregateStat
+#include <vector>
+#include <cstdlib> // For std::rand
+
+NDCScheme::NDCScheme(Config& config, MemoryController* mc) 
+    : CacheScheme(config, mc) {
+    _scheme = NDC; // Set scheme type (assume NDC is added to Scheme enum)
+    // Configuration (e.g., _num_sets, _num_ways, _granularity, _cache) is inherited from CacheScheme
+}
 
 uint64_t NDCScheme::access(MemReq& req) {
-    uint64_t latency = 0;
+    // Determine request type
+    ReqType type = (req.type == GETS || req.type == GETX) ? LOAD : STORE;
+    Address address = req.lineAddr;
 
-    // Extract cache index and tag from address
-    uint64_t index = (req.lineAddr / _granularity) % _num_sets;
-    uint64_t tag = req.lineAddr / (_granularity * _num_sets);
+    // Compute MCDRAM channel and address mapping (similar to Alloy)
+    uint32_t mcdram_select = (address / 64) % _mc->_mcdram_per_mc;
+    Address mc_address = (address / 64 / _mc->_mcdram_per_mc * 64) | (address % 64);
+    Address tag = address / _granularity;
+    uint64_t set_num = tag % _num_sets; // Standard set mapping
 
-    // Determine bank and row buffer state
-    uint32_t bank = index % _num_banks;
-    bool row_hit = (_open_rows[bank] == index);
-    if (!row_hit) {
-        if (_open_rows[bank] != static_cast<uint64_t>(-1)) {
-            latency += _tRP;  // Precharge previous row
-        }
-        latency += _tRCD;  // Activate new row
-        _open_rows[bank] = index;
-    }
-
-    // Tag matching
-    bool hit = false;
-    uint32_t way = 0;
-    for (way = 0; way < _num_ways; way++) {
-        if (_cache[index].ways[way].valid && _cache[index].ways[way].tag == tag) {
-            hit = true;
+    // Check for cache hit
+    uint32_t hit_way = _num_ways;
+    for (uint32_t way = 0; way < _num_ways; way++) {
+        if (_cache[set_num].ways[way].valid && _cache[set_num].ways[way].tag == tag) {
+            hit_way = way;
             break;
         }
     }
 
-    if (req.type == GETS || req.type == GETX) {  // Read
-        if (hit) {
-            latency += _deltaCL + _tCL;
-            _num_hit_per_step++;
-        } else {
-            // Fetch from main memory
-            // Address ext_addr = req.lineAddr;
-            MemReq ext_req = req;
-            latency += _mc->_ext_dram->access(ext_req);
-            _num_miss_per_step++;
+    uint64_t data_ready_cycle = 0;
+    MESIState state;
 
-            // Allocate in cache
-            uint32_t victim_way = selectVictim(index);
-            if (_cache[index].ways[victim_way].valid && _cache[index].ways[victim_way].dirty) {
-                // Handle eviction using victim buffer
-                if (_victim_buffer->reserveSlot()) {
-                    Address victim_addr = _cache[index].ways[victim_way].tag * (_granularity * _num_sets) + index * _granularity;
-                    _victim_buffer->addEntry(victim_addr, index, victim_way);
-                    _victim_buffer_entries++;
-                } else {
-                    // Victim buffer full, writeback directly
-                    Address victim_addr = _cache[index].ways[victim_way].tag * (_granularity * _num_sets) + index * _granularity;
-                    MemReq wb_req = {victim_addr, PUTX, req.childId, nullptr, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-                    latency += _mc->_ext_dram->access(wb_req);
+    if (type == LOAD) {
+        // Simulate cache access (in-subarray tag matching)
+        MemReq read_req = {mc_address, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+        req.cycle = _mc->_mcdram[mcdram_select]->access(read_req, 0, 4);
+        _mc_bw_per_step += 4;
+
+        if (hit_way < _num_ways) {
+            // Cache hit
+            _num_hit_per_step++;
+            _numLoadHit.inc();
+            data_ready_cycle = req.cycle; // Data available after cache latency
+        } else {
+            // Cache miss: Fetch from main memory and fill the cache
+            _num_miss_per_step++;
+            _numLoadMiss.inc();
+
+            // Fetch data from main memory
+            MemReq main_memory_req = {address, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+            data_ready_cycle = _mc->_ext_dram->access(main_memory_req, 1, 4);
+            _ext_bw_per_step += 4;
+
+            // Victim selection: prefer invalid, then clean, then dirty (random among equals)
+            std::vector<uint32_t> candidates;
+            for (uint32_t way = 0; way < _num_ways; way++) {
+                if (!_cache[set_num].ways[way].valid) {
+                    candidates.push_back(way);
                 }
             }
-            _cache[index].ways[victim_way].tag = tag;
-            _cache[index].ways[victim_way].valid = true;
-            _cache[index].ways[victim_way].dirty = false;
+            if (candidates.empty()) {
+                for (uint32_t way = 0; way < _num_ways; way++) {
+                    if (_cache[set_num].ways[way].valid && !_cache[set_num].ways[way].dirty) {
+                        candidates.push_back(way);
+                    }
+                }
+            }
+            if (candidates.empty()) {
+                for (uint32_t way = 0; way < _num_ways; way++) {
+                    if (_cache[set_num].ways[way].valid && _cache[set_num].ways[way].dirty) {
+                        candidates.push_back(way);
+                    }
+                }
+            }
+            uint32_t victim_way = candidates[std::rand() % candidates.size()];
+
+            // Handle eviction if victim is dirty
+            if (_cache[set_num].ways[victim_way].valid && _cache[set_num].ways[victim_way].dirty) {
+                Address wb_address = _cache[set_num].ways[victim_way].tag * _granularity;
+                MemReq wb_req = {wb_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+                _mc->_ext_dram->access(wb_req, 2, 4); // Write-back to main memory
+                _ext_bw_per_step += 4;
+            }
+
+            // Insert new line (fill operation)
+            _cache[set_num].ways[victim_way].tag = tag;
+            _cache[set_num].ways[victim_way].valid = true;
+            _cache[set_num].ways[victim_way].dirty = false; // LOAD: line is clean
         }
-    } else {  // Write
-        if (hit) {
-            latency += _deltaCL + _tCWL;
-            _cache[index].ways[way].dirty = true;
-            _num_hit_per_step++;
-        } else {
-            // Read-Modify-Write for write miss
-            // First fetch the line
-            Address ext_addr = req.lineAddr;
-            MemReq ext_req = {ext_addr, GETS, req.childId, req.state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-            latency += _mc->_ext_dram->access(ext_req);
-            _num_miss_per_step++;
+    } else { // STORE
+        // Simulate cache write access
+        MemReq write_req = {mc_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+        req.cycle = _mc->_mcdram[mcdram_select]->access(write_req, 0, 4);
+        _mc_bw_per_step += 4;
 
-            // Then allocate and modify
-            uint32_t victim_way = selectVictim(index);
-            if (_cache[index].ways[victim_way].valid && _cache[index].ways[victim_way].dirty) {
-                // Handle eviction using victim buffer
-                if (_victim_buffer->reserveSlot()) {
-                    Address victim_addr = _cache[index].ways[victim_way].tag * (_granularity * _num_sets) + index * _granularity;
-                    _victim_buffer->addEntry(victim_addr, index, victim_way);
-                    _victim_buffer_entries++;
-                } else {
-                    // Victim buffer full, writeback directly
-                    Address victim_addr = _cache[index].ways[victim_way].tag * (_granularity * _num_sets) + index * _granularity;
-                    MemReq wb_req = {victim_addr, PUTX, req.childId, nullptr, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-                    latency += _mc->_ext_dram->access(wb_req);
+        if (hit_way < _num_ways) {
+            // Write hit
+            _num_hit_per_step++;
+            _numStoreHit.inc();
+            _cache[set_num].ways[hit_way].dirty = true;
+            data_ready_cycle = req.cycle;
+        } else {
+            // Write miss
+            _num_miss_per_step++;
+            _numStoreMiss.inc();
+
+            // Victim selection: prefer invalid, then clean, then dirty (random among equals)
+            std::vector<uint32_t> candidates;
+            for (uint32_t way = 0; way < _num_ways; way++) {
+                if (!_cache[set_num].ways[way].valid) {
+                    candidates.push_back(way);
                 }
             }
-            _cache[index].ways[victim_way].tag = tag;
-            _cache[index].ways[victim_way].valid = true;
-            _cache[index].ways[victim_way].dirty = true;
+            if (candidates.empty()) {
+                for (uint32_t way = 0; way < _num_ways; way++) {
+                    if (_cache[set_num].ways[way].valid && !_cache[set_num].ways[way].dirty) {
+                        candidates.push_back(way);
+                    }
+                }
+            }
+            if (candidates.empty()) {
+                for (uint32_t way = 0; way < _num_ways; way++) {
+                    if (_cache[set_num].ways[way].valid && _cache[set_num].ways[way].dirty) {
+                        candidates.push_back(way);
+                    }
+                }
+            }
+            uint32_t victim_way = candidates[std::rand() % candidates.size()];
+
+            // Handle eviction if victim is dirty
+            if (_cache[set_num].ways[victim_way].valid && _cache[set_num].ways[victim_way].dirty) {
+                Address wb_address = _cache[set_num].ways[victim_way].tag * _granularity;
+                MemReq wb_req = {wb_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+                _mc->_ext_dram->access(wb_req, 2, 4); // Write-back to main memory
+                _ext_bw_per_step += 4;
+            }
+
+            // Insert new line
+            _cache[set_num].ways[victim_way].tag = tag;
+            _cache[set_num].ways[victim_way].valid = true;
+            _cache[set_num].ways[victim_way].dirty = true; // STORE: mark as dirty
+            data_ready_cycle = req.cycle;
         }
     }
 
-    // Process any pending victim buffer entries if we have bandwidth
-    if (_victim_buffer_entries > 0) {
-        Address vb_addr;
-        uint32_t vb_set, vb_way;
-        if (_victim_buffer->getEntry(vb_addr, vb_set, vb_way)) {
-            MemReq vb_req = {vb_addr, PUTX, req.childId, nullptr, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-            _mc->_ext_dram->access(vb_req);
-            _victim_buffer_entries--;
-        }
-    }
-
-    return req.cycle + latency;
+    return data_ready_cycle;
 }
 
 void NDCScheme::period(MemReq& req) {
@@ -162,83 +195,21 @@ void NDCScheme::period(MemReq& req) {
     }
 }
 
+
 void NDCScheme::initStats(AggregateStat* parentStat) {
     AggregateStat* stats = new AggregateStat();
-    stats->init("ndc", "NDC cache stats");
-
-    // Add your NDC-specific stats here
-    // Example:
-    // _rowHits.init("rowHits", "Row buffer hits");
-    // stats->append(&_rowHits);
-
+    stats->init("ndcCache", "NDC Cache stats");
+    _numCleanEviction.init("cleanEvict", "Clean Eviction");
+    stats->append(&_numCleanEviction);
+    _numDirtyEviction.init("dirtyEvict", "Dirty Eviction");
+    stats->append(&_numDirtyEviction);
+    _numLoadHit.init("loadHit", "Load Hit");
+    stats->append(&_numLoadHit);
+    _numLoadMiss.init("loadMiss", "Load Miss");
+    stats->append(&_numLoadMiss);
+    _numStoreHit.init("storeHit", "Store Hit");
+    stats->append(&_numStoreHit);
+    _numStoreMiss.init("storeMiss", "Store Miss");
+    stats->append(&_numStoreMiss);
     parentStat->append(stats);
-}
-
-// VictimBuffer implementation
-VictimBuffer::VictimBuffer(uint32_t size) {
-    _size = size;
-    _numEntries = 0;
-    _head = 0;
-    _tail = 0;
-    _reservedSlots = 0;
-    _entries = new VictimBufferEntry[size];
-
-    for (uint32_t i = 0; i < size; i++) {
-        _entries[i].valid = false;
-    }
-}
-
-VictimBuffer::~VictimBuffer() {
-    delete[] _entries;
-}
-
-bool VictimBuffer::reserveSlot() {
-    if (_numEntries + _reservedSlots >= _size) {
-        return false;
-    }
-
-    _reservedSlots++;
-    return true;
-}
-
-void VictimBuffer::releaseSlot() {
-    if (_reservedSlots > 0) {
-        _reservedSlots--;
-    }
-}
-
-bool VictimBuffer::addEntry(Address address, uint32_t set, uint32_t way) {
-    if (_numEntries >= _size) {
-        return false;
-    }
-
-    _entries[_tail].valid = true;
-    _entries[_tail].address = address;
-    _entries[_tail].set = set;
-    _entries[_tail].way = way;
-
-    _tail = (_tail + 1) % _size;
-    _numEntries++;
-
-    if (_reservedSlots > 0) {
-        _reservedSlots--;
-    }
-
-    return true;
-}
-
-bool VictimBuffer::getEntry(Address& address, uint32_t& set, uint32_t& way) {
-    if (_numEntries == 0) {
-        return false;
-    }
-
-    address = _entries[_head].address;
-    set = _entries[_head].set;
-    way = _entries[_head].way;
-
-    _entries[_head].valid = false;
-    _head = (_head + 1) % _size;
-    _numEntries--;
-
-    return true;
 }
