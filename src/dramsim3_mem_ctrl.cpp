@@ -69,8 +69,7 @@ class DRAMSim3AccEvent : public TimingEvent {
 };
 
 DRAMSim3Memory::DRAMSim3Memory(std::string &ConfigName, std::string &OutputDir,
-                               int cpuFreqMHz, uint32_t _controllerSysLatency, uint32_t _domain, const g_string &_name): 
-                               controllerSysLatency(_controllerSysLatency), domain(_domain), name(_name) {
+                               int cpuFreqMHz, uint32_t _controllerSysLatency, uint32_t _domain, const g_string &_name) : controllerSysLatency(_controllerSysLatency), domain(_domain), name(_name) {
     curCycle = 0;
     dramCycle = 0;
     dramPs = 0;
@@ -86,6 +85,7 @@ DRAMSim3Memory::DRAMSim3Memory(std::string &ConfigName, std::string &OutputDir,
 
     minRdLatency = controllerSysLatency + dramCore->Get_CL();
     minWrLatency = controllerSysLatency;
+    minLatency = minRdLatency;
 
     double tCK = dramCore->GetTCK();
 
@@ -101,7 +101,7 @@ DRAMSim3Memory::DRAMSim3Memory(std::string &ConfigName, std::string &OutputDir,
     bg_pos = dramCore->GetBankGroupPosition();
     ba_pos = dramCore->GetBankPosition();
     ro_pos = dramCore->GetRowPosition();
-    co_pos = dramCore->GetColumnPosition(); 
+    co_pos = dramCore->GetColumnPosition();
 
     ch_mask = dramCore->GetChannelMask();
     ra_mask = dramCore->GetRankMask();
@@ -113,7 +113,7 @@ DRAMSim3Memory::DRAMSim3Memory(std::string &ConfigName, std::string &OutputDir,
     info("DRAMSim3Memory[%s]: channels=%d, ranks=%d, bankgroups=%d, banks=%d, rows=%d, columns=%d", name.c_str(), channels, ranks, bankgroups, banks, rows, columns);
     info("DRAMSim3Memory[%s]: ch_pos=%d, ra_pos=%d, bg_pos=%d, ba_pos=%d, ro_pos=%d, co_pos=%d", name.c_str(), ch_pos, ra_pos, bg_pos, ba_pos, ro_pos, co_pos);
     info("DRAMSim3Memory[%s]: ch_mask=%d, ra_mask=%d, bg_mask=%d, ba_mask=%d, ro_mask=%d, co_mask=%d, tCK=%f", name.c_str(), ch_mask, ra_mask, bg_mask, ba_mask, ro_mask, co_mask, tCK);
-    
+
     dramPsPerClk = static_cast<uint64_t>(tCK * 1000);
     cpuPsPerClk = static_cast<uint64_t>(1000000. / cpuFreqMHz);
     assert(cpuPsPerClk < dramPsPerClk);
@@ -241,11 +241,11 @@ uint64_t DRAMSim3Memory::access(MemReq &req, int type, uint32_t data_size) {
         default:
             panic("!?");
     }
-    
+
     uint64_t respCycle = req.cycle;
     if ((req.type != PUTS /*discard clean writebacks*/) && zinfo->eventRecorders[req.srcId]) {
         bool isWrite = (req.type == PUTX);
-        respCycle = req.cycle + max(isWrite? minWrLatency : minRdLatency, minLatency - data_size) + data_size;
+        respCycle = req.cycle + max(isWrite ? minWrLatency : minRdLatency, minLatency > data_size ? minLatency - data_size : 0) + data_size;
         Address addr = req.lineAddr << lineBits;
         uint64_t hexAddr = (uint64_t)addr;
         /*
@@ -255,7 +255,7 @@ uint64_t DRAMSim3Memory::access(MemReq &req, int type, uint32_t data_size) {
         TimingRecord tr = {addr, req.cycle, respCycle, req.type, memEv, memEv};
         zinfo->eventRecorders[req.srcId]->pushRecord(tr);
         */
-        
+
         DRAMSim3AccEvent *memEv = new (zinfo->eventRecorders[req.srcId]) DRAMSim3AccEvent(this, isWrite, addr, domain);
         if (type == 0) {  // default. The only record.
             TimingRecord tr;
