@@ -86,8 +86,9 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
         string outputDir = config.get<const char*>("sys.mem.ext_dram.outputDir");
         info("Initializing DRAMSim3 with config %s, output dir %s, freq %d MHz",
              dramIni.c_str(), outputDir.c_str(), cpuFreqMHz);
+        uint32_t latency = config.get<uint32_t>("sys.mem.ext_dram.latency", 100);
         _ext_dram = (DRAMSim3Memory*)gm_malloc(sizeof(DRAMSim3Memory));
-        new (_ext_dram) DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, domain, ext_dram_name);
+        new (_ext_dram) DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, latency, domain, ext_dram_name);
     } else
         panic("Invalid memory controller type %s", _ext_type.c_str());
 
@@ -130,8 +131,9 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
                 int cpuFreqMHz = freqMHz;
                 string dramIni = config.get<const char*>("sys.mem.mcdram.configIni");
                 string outputDir = config.get<const char*>("sys.mem.mcdram.outputDir");
+                uint32_t latency = config.get<uint32_t>("sys.mem.mcdram.latency", 0);
                 _mcdram[i] = (DRAMSim3Memory*)gm_malloc(sizeof(DRAMSim3Memory));
-                new (_mcdram[i]) DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, domain, mcdram_name);
+                new (_mcdram[i]) DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, latency, domain, mcdram_name);
             } else
                 panic("Invalid memory controller type %s", _mcdram_type.c_str());
         }
@@ -139,8 +141,9 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
 
     g_string placement_scheme = config.get<const char*>("sys.mem.mcdram.placementPolicy", "LRU");
     _num_steps = 0;
-    uint64_t cache_size = config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024 * 1024;
+    uint64_t cache_size = (uint64_t)config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024 * 1024;
     _step_length = cache_size / 64 / 10;
+    info("cache_size: %lu, step_length: %lu", cache_size, _step_length);
     _num_requests = 0;
 }
 

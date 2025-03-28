@@ -123,7 +123,7 @@ class Network;
 class MemObject : public GlobAlloc {
     public:
         // Set configuration for no man's problem solution
-        virtual void setDRAMsimConfiguration(uint32_t delayQueue) {printf("setDRAMsimConfiguration: dramsim3 not enabled yet. Wrong\n");} //careful! this function is a hack should not be called.
+        virtual void setDRAMsimConfiguration(uint32_t delayQueue) {/* printf("setDRAMsimConfiguration: dramsim3 not enabled yet. Wrong\n"); */} //careful! this function is a hack should not be called.
         // output stats
         virtual void printStats() {printf("printStats: dramsim3 not enabled yet. Wrong\n");}
         //Returns response cycle

@@ -11,10 +11,16 @@ sudo sysctl -w kernel.shmmax=18446744073692774399
 sudo sysctl -w kernel.yama.ptrace_scope=0
 
 cd $ZSIMPATH
+
 # ./bin/zsim tests/debug.cfg output
 # ./bin/zsim tests/debug-dramsim2.cfg output
-./bin/zsim tests/debug-dramsim3.cfg output
+# ./bin/zsim tests/debug-dramsim3.cfg output
 # ./bin/zsim tests/debug-ddr-dramsim3.cfg output
 # ./bin/zsim tests/simple_dramsim2.cfg output
 #  ./bin/zsim tests/simple_dramsim3.cfg output
+
+# ./bin/zsim tests/test-alloy.cfg output
+./bin/zsim tests/test-ndc.cfg output
+# ./bin/zsim tests/test-nocache.cfg output
+# ./bin/zsim tests/test-cacheonly.cfg output
 cd -

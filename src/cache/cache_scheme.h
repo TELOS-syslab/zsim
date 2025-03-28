@@ -45,7 +45,7 @@ class CacheScheme {
 
         _granularity = config.get<uint32_t>("sys.mem.mcdram.cache_granularity", 64);
         _num_ways = config.get<uint32_t>("sys.mem.mcdram.num_ways", 1);
-        _cache_size = config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024 * 1024;
+        _cache_size = (uint64_t)config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024 * 1024;
         _num_sets = _cache_size / _num_ways / _granularity;
         // _cache = new Set[_num_sets];
         _cache = (Set*)gm_malloc(sizeof(Set) * _num_sets);

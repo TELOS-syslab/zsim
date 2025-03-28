@@ -375,7 +375,7 @@ MemObject* BuildMemoryController(Config& config, uint32_t lineSize, uint32_t fre
         int cpuFreqMHz = frequency;
         string dramIni = config.get<const char*>("sys.mem.configIni");
         string outputDir = config.get<const char*>("sys.mem.outputDir");
-        mem = new DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, domain, name);
+        mem = new DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, latency, domain, name);
     } else if (type == "Detailed") {
         // FIXME(dsm): Don't use a separate config file... see DDRMemory
         g_string mcfg = config.get<const char*>("sys.mem.paramFile", "");
@@ -929,24 +929,22 @@ void mkdirIfNotExist(string path)
 
 }
 
-static void PostInitStats(bool perProcessDir, Config& config) {
+static void PostInitStats(bool perProcessDir, Config& config, string suffix_str="") {
     zinfo->rootStat->makeImmutable();
     zinfo->trigger = 15000;
 
-    string pathStr = zinfo->outputDir;
-    pathStr += "/";
-
     // Absolute paths for stats files. Note these must be in the global heap.
 /*
-    const char* pStatsFile = gm_strdup((pathStr + "zsim.h5").c_str());
-    const char* evStatsFile = gm_strdup((pathStr + "zsim-ev.h5").c_str());
-    const char* cmpStatsFile = gm_strdup((pathStr + "zsim-cmp.h5").c_str());
-    const char* statsFile = gm_strdup((pathStr + "zsim.out").c_str());
+    const char* pStatsFile = gm_strdup((zinfo->outputDir + "/zsim.h5").c_str());
+    const char* evStatsFile = gm_strdup((zinfo->outputDir + "/zsim-ev.h5").c_str());
+    const char* cmpStatsFile = gm_strdup((zinfo->outputDir + "/zsim-cmp.h5").c_str());
+    const char* statsFile = gm_strdup((zinfo->outputDir + "/zsim.out").c_str());
 */
-    const char* pStatsFile   =  ZsimFileNameForStats(ZSIM, pathStr, true);
-    const char* evStatsFile  =  ZsimFileNameForStats(ZSIM_EV, pathStr, true);
-    const char* cmpStatsFile =  ZsimFileNameForStats(ZSIM_CMP, pathStr, true);
-    const char* statsFile    =  ZsimFileNameForStats(ZSIM_OUT, pathStr, true);
+
+    const char* pStatsFile   =  ZsimFileNameForStats(ZSIM, zinfo->outputDir, true, suffix_str);
+    const char* evStatsFile  =  ZsimFileNameForStats(ZSIM_EV, zinfo->outputDir, true, suffix_str);
+    const char* cmpStatsFile =  ZsimFileNameForStats(ZSIM_CMP, zinfo->outputDir, true, suffix_str);
+    const char* statsFile    =  ZsimFileNameForStats(ZSIM_OUT, zinfo->outputDir, true, suffix_str);
 
     if (zinfo->statsPhaseInterval) {
         const char* periodicStatsFilter = config.get<const char*>("sim.periodicStatsFilter", "");
@@ -1019,7 +1017,23 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
     zinfo = gm_calloc<GlobSimInfo>();
     zinfo->outputDir = gm_strdup(outputDir);
     zinfo->statsBackends = new g_vector<StatsBackend*>();
-    const char* outCfgFile = ZsimFileNameForStats(OUT_CFG, zinfo->outputDir, true);
+
+    char date_cbuf[16];
+    time_t thisDate = time(NULL);
+    struct tm *infoDate = localtime(&thisDate);
+    if (infoDate != NULL ) { 
+        std::snprintf(date_cbuf,16, "%04d%02d%02d-%02d%02d%02d", 
+            infoDate->tm_year + 1900, infoDate->tm_mon + 1, infoDate->tm_mday,
+            infoDate->tm_hour, infoDate->tm_min, infoDate->tm_sec);
+    } else { 
+        struct timeval nixTime;
+        gettimeofday(&nixTime, NULL);
+        // wont check the value but another validation wont hurt.
+        std::snprintf(date_cbuf,15, "%ld", nixTime.tv_sec );
+    }
+    string suffix_str(&date_cbuf[0]);
+
+    const char* outCfgFile = ZsimFileNameForStats(OUT_CFG, zinfo->outputDir, true, suffix_str);
     Config config(configFile);
 
     //Debugging
@@ -1154,7 +1168,7 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
     zinfo->rootStat->append(zinfo->profHeartbeats);
 
     bool perProcessDir = config.get<bool>("sim.perProcessDir", false);
-    PostInitStats(perProcessDir, config);
+    PostInitStats(perProcessDir, config, suffix_str);
 
     zinfo->perProcessCpuEnum = config.get<bool>("sim.perProcessCpuEnum", false);
 
