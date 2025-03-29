@@ -87,4 +87,29 @@ class TLBEntry {
     uint64_t touch_bitvec;  // whether a line is touched in a page
     uint64_t dirty_bitvec;  // whether a line is dirty in page
 };
+
+struct DramAddress {
+    DramAddress()
+        : channel(-1), rank(-1), bankgroup(-1), bank(-1), row(-1), column(-1) {}
+    DramAddress(int channel, int rank, int bankgroup, int bank, int row, int column)
+        : channel(channel),
+          rank(rank),
+          bankgroup(bankgroup),
+          bank(bank),
+          row(row),
+          column(column) {}
+    DramAddress(const DramAddress& addr)
+        : channel(addr.channel),
+          rank(addr.rank),
+          bankgroup(addr.bankgroup),
+          bank(addr.bank),
+          row(addr.row),
+          column(addr.column) {}
+    int channel;
+    int rank;
+    int bankgroup;
+    int bank;
+    int row;
+    int column;
+};
 #endif

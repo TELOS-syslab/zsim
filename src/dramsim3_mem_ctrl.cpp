@@ -317,6 +317,23 @@ uint64_t DRAMSim3Memory::access(MemReq &req, int type, uint32_t data_size) {
 void DRAMSim3Memory::printStats() { dramCore->PrintStats(); }
 
 uint32_t DRAMSim3Memory::tick(uint64_t cycle) {
+    // Try to add any pending requests
+    if (!pendingRequests.empty()) {
+        auto it = pendingRequests.begin();
+        while (it != pendingRequests.end()) {
+            DRAMSim3AccEvent *ev = it->first;
+            if (dramCore->WillAcceptTransaction(ev->getAddr(), ev->isWrite())) {
+                dramCore->AddTransaction(ev->getAddr(), ev->isWrite());
+                inflightRequests.insert(std::pair<Address, DRAMSim3AccEvent *>(ev->getAddr(), ev));
+                ev->hold();
+                it = pendingRequests.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    // Original tick code
     cpuPs += cpuPsPerClk;
     curCycle++;
     if (cpuPs > dramPs) {
@@ -332,10 +349,16 @@ uint32_t DRAMSim3Memory::tick(uint64_t cycle) {
 }
 
 void DRAMSim3Memory::enqueue(DRAMSim3AccEvent *ev, uint64_t cycle) {
-    // info("[%s] %s access to %lx added at %ld, %ld inflight reqs", getName(), ev->isWrite()? "Write" : "Read", ev->getAddr(), cycle, inflightRequests.size());
-    dramCore->AddTransaction(ev->getAddr(), ev->isWrite());
+    /* dramCore->AddTransaction(ev->getAddr(), ev->isWrite());
     inflightRequests.insert(std::pair<Address, DRAMSim3AccEvent *>(ev->getAddr(), ev));
-    ev->hold();
+    ev->hold(); */
+    if (dramCore->WillAcceptTransaction(ev->getAddr(), ev->isWrite())) {
+        dramCore->AddTransaction(ev->getAddr(), ev->isWrite());
+        inflightRequests.insert(std::pair<Address, DRAMSim3AccEvent *>(ev->getAddr(), ev));
+        ev->hold();
+    } else {
+        pendingRequests.push_back(std::make_pair(ev, cycle));
+    }
 }
 
 void DRAMSim3Memory::DRAM_read_return_cb(uint64_t addr) {

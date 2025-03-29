@@ -24,6 +24,7 @@ class AlloyCacheScheme : public CacheScheme {
         : CacheScheme(config, mc) {
         _scheme = AlloyCache;
         
+        assert(_granularity==64);
         // Use gm_malloc for placement policy
         _line_placement_policy = (LinePlacementPolicy*)gm_malloc(sizeof(LinePlacementPolicy));
         new (_line_placement_policy) LinePlacementPolicy();

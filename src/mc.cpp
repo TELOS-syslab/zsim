@@ -28,31 +28,7 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
 
     g_string scheme = config.get<const char*>("sys.mem.cache_scheme", "NoCache");
 
-    // Instantiate CacheScheme based on scheme type
-    if (scheme == "AlloyCache") {
-        _scheme = AlloyCache;
-        _cache_scheme = new (gm_malloc(sizeof(AlloyCacheScheme))) AlloyCacheScheme(config, this);
-    } else if (scheme == "UnisonCache") {
-        _scheme = UnisonCache;
-        _cache_scheme = new (gm_malloc(sizeof(UnisonCacheScheme))) UnisonCacheScheme(config, this);
-    } else if (scheme == "BansheeCache") {
-        _scheme = BansheeCache;
-        _cache_scheme = new (gm_malloc(sizeof(BansheeCacheScheme))) BansheeCacheScheme(config, this);
-    } else if (scheme == "NoCache") {
-        _scheme = NoCache;
-        _cache_scheme = new (gm_malloc(sizeof(NoCacheScheme))) NoCacheScheme(config, this);
-    } else if (scheme == "CacheOnly") {
-        _scheme = CacheOnly;
-        _cache_scheme = new (gm_malloc(sizeof(CacheOnlyScheme))) CacheOnlyScheme(config, this);
-    } else if (scheme == "CopyCache") {
-        _scheme = CopyCache;
-        _cache_scheme = new (gm_malloc(sizeof(CopyCacheScheme))) CopyCacheScheme(config, this);
-    } else if (scheme == "NDC") {
-        _scheme = NDC;
-        _cache_scheme = new (gm_malloc(sizeof(NDCScheme))) NDCScheme(config, this);
-    } else {
-        panic("Invalid cache scheme %s", scheme.c_str());
-    }
+
 
     // Configure external DRAM
     _ext_type = config.get<const char*>("sys.mem.ext_dram.type", "Simple");
@@ -140,6 +116,33 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
     }
 
     g_string placement_scheme = config.get<const char*>("sys.mem.mcdram.placementPolicy", "LRU");
+
+    // Instantiate CacheScheme based on scheme type
+    if (scheme == "AlloyCache") {
+        _scheme = AlloyCache;
+        _cache_scheme = new (gm_malloc(sizeof(AlloyCacheScheme))) AlloyCacheScheme(config, this);
+    } else if (scheme == "UnisonCache") {
+        _scheme = UnisonCache;
+        _cache_scheme = new (gm_malloc(sizeof(UnisonCacheScheme))) UnisonCacheScheme(config, this);
+    } else if (scheme == "BansheeCache") {
+        _scheme = BansheeCache;
+        _cache_scheme = new (gm_malloc(sizeof(BansheeCacheScheme))) BansheeCacheScheme(config, this);
+    } else if (scheme == "NoCache") {
+        _scheme = NoCache;
+        _cache_scheme = new (gm_malloc(sizeof(NoCacheScheme))) NoCacheScheme(config, this);
+    } else if (scheme == "CacheOnly") {
+        _scheme = CacheOnly;
+        _cache_scheme = new (gm_malloc(sizeof(CacheOnlyScheme))) CacheOnlyScheme(config, this);
+    } else if (scheme == "CopyCache") {
+        _scheme = CopyCache;
+        _cache_scheme = new (gm_malloc(sizeof(CopyCacheScheme))) CopyCacheScheme(config, this);
+    } else if (scheme == "NDC") {
+        _scheme = NDC;
+        _cache_scheme = new (gm_malloc(sizeof(NDCScheme))) NDCScheme(config, this);
+    } else {
+        panic("Invalid cache scheme %s", scheme.c_str());
+    }
+
     _num_steps = 0;
     uint64_t cache_size = (uint64_t)config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024 * 1024;
     _step_length = cache_size / 64 / 10;

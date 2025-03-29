@@ -78,6 +78,8 @@ class DRAMSim3Memory : public MemObject {  // one DRAMSim3 controller
     Counter profTotalWrLat;
     PAD();
 
+    std::vector<std::pair<DRAMSim3AccEvent*, uint64_t>> pendingRequests;
+
    public:
     DRAMSim3Memory(std::string &ConfigName, std::string &OutputDir,
                    int cpuFreqMHz, uint32_t _controllerSysLatency, uint32_t _domain, const g_string &_name);
@@ -103,9 +105,9 @@ class DRAMSim3Memory : public MemObject {  // one DRAMSim3 controller
     using ChannelQueue = g_unordered_map<uint64_t, RankQueue>;
     g_unordered_map<uint64_t, ChannelQueue> requestQueues;
 
-    int channels, ranks, banks, bankgroups, rows, columns;
-    int ch_pos, ra_pos, bg_pos, ba_pos, ro_pos, co_pos;
-    uint64_t ch_mask, ra_mask, bg_mask, ba_mask, ro_mask, co_mask;
+    uint32_t channels, ranks, banks, bankgroups, rows, columns;
+    uint32_t ch_pos, ra_pos, bg_pos, ba_pos, ro_pos, co_pos;
+    uint32_t ch_mask, ra_mask, bg_mask, ba_mask, ro_mask, co_mask;
     void DRAM_read_return_cb(uint64_t addr);
     void DRAM_write_return_cb(uint64_t addr);
     std::function<void(uint64_t)> callBackFn;

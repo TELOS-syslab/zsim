@@ -1,13 +1,9 @@
 #include "cache/ndc.h"
-#include "mc.h"
-#include <vector>
-#include <cstdlib> // For std::rand
 
-NDCScheme::NDCScheme(Config& config, MemoryController* mc) 
-    : CacheScheme(config, mc) {
-    _scheme = NDC; // Set scheme type (assume NDC is added to Scheme enum)
-    // Configuration (e.g., _num_sets, _num_ways, _granularity, _cache) is inherited from CacheScheme
-}
+#include <cstdlib>  // For std::rand
+#include <vector>
+
+#include "mc.h"
 
 uint64_t NDCScheme::access(MemReq& req) {
     // Determine request type
@@ -15,10 +11,11 @@ uint64_t NDCScheme::access(MemReq& req) {
     Address address = req.lineAddr;
 
     // Compute MCDRAM channel and address mapping (similar to Alloy)
-    uint32_t mcdram_select = (address / 64) % _mc->_mcdram_per_mc;
-    Address mc_address = (address / 64 / _mc->_mcdram_per_mc * 64) | (address % 64);
-    Address tag = address / _granularity;
-    uint64_t set_num = tag % _num_sets; // Standard set mapping
+    uint32_t mcdram_select = 0;
+    Address mc_address = address;
+    uint64_t set_num = getSetNum(address);
+    Address tag = getTag(address);
+    // info("set_num = %ld, tag = %ld, address = %ld\n", set_num, tag, address);
 
     // Check for cache hit
     uint32_t hit_way = _num_ways;
@@ -42,7 +39,7 @@ uint64_t NDCScheme::access(MemReq& req) {
             // Cache hit
             _num_hit_per_step++;
             _numLoadHit.inc();
-            data_ready_cycle = req.cycle; // Data available after cache latency
+            data_ready_cycle = req.cycle;  // Data available after cache latency
         } else {
             // Cache miss: Fetch from main memory and fill the cache
             _num_miss_per_step++;
@@ -53,6 +50,7 @@ uint64_t NDCScheme::access(MemReq& req) {
             data_ready_cycle = _mc->_ext_dram->access(main_memory_req, 1, 4);
             _ext_bw_per_step += 4;
 
+            // Fill cache
             // Victim selection: prefer invalid, then clean, then dirty (random among equals)
             std::vector<uint32_t> candidates;
             for (uint32_t way = 0; way < _num_ways; way++) {
@@ -80,16 +78,16 @@ uint64_t NDCScheme::access(MemReq& req) {
             if (_cache[set_num].ways[victim_way].valid && _cache[set_num].ways[victim_way].dirty) {
                 Address wb_address = _cache[set_num].ways[victim_way].tag * _granularity;
                 MemReq wb_req = {wb_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-                _mc->_ext_dram->access(wb_req, 2, 4); // Write-back to main memory
+                _mc->_ext_dram->access(wb_req, 2, 4);  // Write-back to main memory
                 _ext_bw_per_step += 4;
             }
 
             // Insert new line (fill operation)
             _cache[set_num].ways[victim_way].tag = tag;
             _cache[set_num].ways[victim_way].valid = true;
-            _cache[set_num].ways[victim_way].dirty = false; // LOAD: line is clean
+            _cache[set_num].ways[victim_way].dirty = false;  // LOAD: line is clean
         }
-    } else { // STORE
+    } else {  // STORE
         // Simulate cache write access
         MemReq write_req = {mc_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
         req.cycle = _mc->_mcdram[mcdram_select]->access(write_req, 0, 4);
@@ -133,14 +131,14 @@ uint64_t NDCScheme::access(MemReq& req) {
             if (_cache[set_num].ways[victim_way].valid && _cache[set_num].ways[victim_way].dirty) {
                 Address wb_address = _cache[set_num].ways[victim_way].tag * _granularity;
                 MemReq wb_req = {wb_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-                _mc->_ext_dram->access(wb_req, 2, 4); // Write-back to main memory
+                _mc->_ext_dram->access(wb_req, 2, 4);  // Write-back to main memory, non-critical
                 _ext_bw_per_step += 4;
             }
 
             // Insert new line
             _cache[set_num].ways[victim_way].tag = tag;
             _cache[set_num].ways[victim_way].valid = true;
-            _cache[set_num].ways[victim_way].dirty = true; // STORE: mark as dirty
+            _cache[set_num].ways[victim_way].dirty = true;  // STORE: mark as dirty
             data_ready_cycle = req.cycle;
         }
     }
@@ -194,7 +192,6 @@ void NDCScheme::period(MemReq& req) {
         printf("_ds_index = %ld/%ld\n", _ds_index, _num_sets);
     }
 }
-
 
 void NDCScheme::initStats(AggregateStat* parentStat) {
     AggregateStat* stats = new AggregateStat();
