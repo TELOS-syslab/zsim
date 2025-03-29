@@ -294,7 +294,7 @@ VOID FFITrackNFFInterval() {
     uint64_t* _ffiPrevFFStartInstrs = ffiPrevFFStartInstrs;
     auto ffiGet = [p, startInstrs]() { return zinfo->processStats->getProcessInstrs(p) - startInstrs; };
     auto ffiFire = [p, _ffiFFStartInstrs, _ffiPrevFFStartInstrs]() {
-        info("FFI: Entering fast-forward for process %d", p);
+        info("FFI: Entering fast-forward for process %d (ffiInstrsDone %ld, current %ld, limit %ld)", p, ffiInstrsDone, zinfo->processStats->getProcessInstrs(p) - *ffiFFStartInstrs, ffiInstrsLimit);
         /* Note this is sufficient due to the lack of reinstruments on FF, and this way we do not need to touch global state */
         futex_lock(&zinfo->ffLock);
         assert(!zinfo->procArray[p]->isInFastForward());
@@ -303,7 +303,8 @@ VOID FFITrackNFFInterval() {
         *_ffiPrevFFStartInstrs = *_ffiFFStartInstrs;
         *_ffiFFStartInstrs = zinfo->processStats->getProcessInstrs(p);
     };
-    zinfo->eventQueue->insert(makeAdaptiveEvent(ffiGet, ffiFire, 0, ffiInstrsLimit - ffiInstrsDone, MAX_IPC*zinfo->phaseLength));
+    info("FFI: Inserting event with ffiInstrsDone %ld, current %ld (%ld - %ld), limit %ld ", ffiInstrsDone, ffiGet(), zinfo->processStats->getProcessInstrs(p), startInstrs, ffiInstrsLimit - ffiInstrsDone);
+    zinfo->eventQueue->insert(makeAdaptiveEvent(ffiGet, ffiFire, 0, ffiInstrsLimit - ffiInstrsDone, MAX_IPC*zinfo->phaseLength*zinfo->numCores));
 
     ffiNFF = true;
 }
@@ -347,7 +348,7 @@ VOID FFIBasicBlock(THREADID tid, ADDRINT bblAddr, BblInfo* bblInfo) {
         FFIAdvance();
         assert(procTreeNode->isInFastForward());
         futex_lock(&zinfo->ffLock);
-        info("FFI: Exiting fast-forward");
+        info("FFI: Thread %d exiting fast-forward", tid);
         ExitFastForward();
         futex_unlock(&zinfo->ffLock);
         FFITrackNFFInterval();
