@@ -13,6 +13,7 @@ enum Scheme {
     CacheOnly,
     CopyCache,
     NDC,
+    IdealBalanced,
     UNKNOWN
 };
 
@@ -42,7 +43,24 @@ class Set {
     bool hasEmptyWay() { return getEmptyWay() < num_ways; };
 };
 
-// Not modeling all details of the tag buffer.
+class TLBEntry {
+   public:
+    uint64_t tag;
+    uint64_t way;
+    uint64_t count;  // for OS based placement policy
+
+    // the following two are only for UnisonCache
+    // due to space cosntraint, it is not feasible to keep one bit for each line,
+    // so we use 1 bit for 4 lines.
+    uint64_t touch_bitvec;  // whether a line is touched in a page
+    uint64_t dirty_bitvec;  // whether a line is dirty in page
+};
+
+class LineEntry {
+   public:
+    uint64_t way;
+};
+
 class TagBufferEntry {
    public:
     Address tag;
@@ -73,19 +91,6 @@ class TagBuffer : public GlobAlloc {
     uint32_t _num_sets;
     uint32_t _entry_occupied;
     uint64_t _last_clear_time;
-};
-
-class TLBEntry {
-   public:
-    uint64_t tag;
-    uint64_t way;
-    uint64_t count;  // for OS based placement policy
-
-    // the following two are only for UnisonCache
-    // due to space cosntraint, it is not feasible to keep one bit for each line,
-    // so we use 1 bit for 4 lines.
-    uint64_t touch_bitvec;  // whether a line is touched in a page
-    uint64_t dirty_bitvec;  // whether a line is dirty in page
 };
 
 struct DramAddress {

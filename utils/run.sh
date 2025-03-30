@@ -22,8 +22,9 @@ cd $ZSIMPATH
 # ./bin/zsim tests/test-alloy.cfg output
 # ./bin/zsim tests/test-ndc-8192.cfg output
 # ./bin/zsim tests/test-ndc-4096.cfg output
-./bin/zsim tests/test-ndc-2048.cfg output
+# ./bin/zsim tests/test-ndc-2048.cfg output
 # ./bin/zsim tests/test-nocache.cfg output
 # ./bin/zsim tests/test-cacheonly.cfg output
 # ./bin/zsim tests/test-debug.cfg output
+./bin/zsim tests/test-idealbalanced.cfg output
 cd -

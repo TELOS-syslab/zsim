@@ -333,7 +333,7 @@ DDRMemory* BuildDDRMemory(Config& config, uint32_t lineSize, uint32_t frequency,
     return mem;
 }
 
-MemObject* BuildMemoryController(Config& config, uint32_t lineSize, uint32_t frequency, uint32_t domain, g_string& name) {
+MemObject* BuildMemoryController(Config& config, uint32_t lineSize, uint32_t frequency, uint32_t domain, g_string& name, string timestamp="") {
     //Type
     string type = config.get<const char*>("sys.mem.type", "Simple");
 
@@ -344,7 +344,7 @@ MemObject* BuildMemoryController(Config& config, uint32_t lineSize, uint32_t fre
     if (type == "Simple") {
         mem = new SimpleMemory(latency, name, config);
     } else if (type == "DramCache") {
-		mem = new MemoryController(name, frequency, domain, config);	
+		mem = new MemoryController(name, frequency, domain, config, timestamp);	
 	} else if (type == "MD1") {
         // The following params are for MD1 only
         // NOTE: Frequency (in MHz) -- note this is a sys parameter (not sys.mem). There is an implicit assumption of having
@@ -369,12 +369,14 @@ MemObject* BuildMemoryController(Config& config, uint32_t lineSize, uint32_t fre
         string dramTechIni = config.get<const char*>("sys.mem.techIni");
         string dramSystemIni = config.get<const char*>("sys.mem.systemIni");
         string outputDir = config.get<const char*>("sys.mem.outputDir");
+        outputDir = outputDir + "/" + timestamp;
         string traceName = config.get<const char*>("sys.mem.traceName");
         mem = new DRAMSimMemory(dramTechIni, dramSystemIni, outputDir, traceName, capacity, cpuFreqHz, latency, domain, name);
     } else if (type == "DRAMSim3") {
         int cpuFreqMHz = frequency;
         string dramIni = config.get<const char*>("sys.mem.configIni");
         string outputDir = config.get<const char*>("sys.mem.outputDir");
+        outputDir = outputDir + "/" + timestamp;
         mem = new DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, latency, domain, name);
     } else if (type == "Detailed") {
         // FIXME(dsm): Don't use a separate config file... see DDRMemory
@@ -438,7 +440,7 @@ CacheGroup* BuildCacheGroup(Config& config, const string& name, bool isTerminal)
     return cgp;
 }
 
-static void InitSystem(Config& config) {
+static void InitSystem(Config& config, string timestamp="") {
     unordered_map<string, string> parentMap; //child -> parent
     unordered_map<string, vector<vector<string>>> childMap; //parent -> children (a parent may have multiple children)
 
@@ -525,7 +527,7 @@ static void InitSystem(Config& config) {
         g_string name(ss.str().c_str());
         //uint32_t domain = nextDomain(); //i*zinfo->numDomains/memControllers;
         uint32_t domain = i*zinfo->numDomains/memControllers;
-        mems[i] = BuildMemoryController(config, zinfo->lineSize, zinfo->freqMHz, domain, name);
+        mems[i] = BuildMemoryController(config, zinfo->lineSize, zinfo->freqMHz, domain, name, timestamp);
     }
 
     if (memControllers > 1) {
@@ -847,13 +849,11 @@ void mkdirIfNotExist(string path)
 	}
 }
 
- char * ZsimFileNameForStats(ZsimStatType type, string pathStr, bool suffix, string suffix_str="") {
-
-
+ char * ZsimFileNameForStats(ZsimStatType type, string pathStr, bool suffix, string& timestamp) {
 	struct stat mdFromFile;  
 	time_t thisDate;
 	struct tm *infoDate;
-
+    string suffix_str = timestamp;
     if (suffix_str.empty()) {
         char date_cbuf[16];
         thisDate = time(NULL);
@@ -912,6 +912,13 @@ void mkdirIfNotExist(string path)
 		}
 		return gm_strdup((pathStr + "/" + "zsim.out" ).c_str());
 	break;
+	case ZSIM_POUT:
+		if (suffix) {
+			// return gm_strdup((pathStr + "/" + "zsim_" + suffix_str + ".out" ).c_str());
+            return gm_strdup((pathStr + "/" + suffix_str + "/" + "zsim-pout.out" ).c_str());
+		}
+		return gm_strdup((pathStr + "/" + "zsim-pout.out" ).c_str());
+	break;
 	case OUT_CFG:
 		if (suffix) {
 			// return gm_strdup((pathStr + "/" + "out_" + suffix_str + ".cfg" ).c_str());
@@ -929,7 +936,7 @@ void mkdirIfNotExist(string path)
 
 }
 
-static void PostInitStats(bool perProcessDir, Config& config, string suffix_str="") {
+static void PostInitStats(bool perProcessDir, Config& config, string timestamp="") {
     zinfo->rootStat->makeImmutable();
     zinfo->trigger = 15000;
 
@@ -941,10 +948,11 @@ static void PostInitStats(bool perProcessDir, Config& config, string suffix_str=
     const char* statsFile = gm_strdup((zinfo->outputDir + "/zsim.out").c_str());
 */
 
-    const char* pStatsFile   =  ZsimFileNameForStats(ZSIM, zinfo->outputDir, true, suffix_str);
-    const char* evStatsFile  =  ZsimFileNameForStats(ZSIM_EV, zinfo->outputDir, true, suffix_str);
-    const char* cmpStatsFile =  ZsimFileNameForStats(ZSIM_CMP, zinfo->outputDir, true, suffix_str);
-    const char* statsFile    =  ZsimFileNameForStats(ZSIM_OUT, zinfo->outputDir, true, suffix_str);
+    const char* pStatsFile   =  ZsimFileNameForStats(ZSIM, zinfo->outputDir, true, timestamp);
+    const char* evStatsFile  =  ZsimFileNameForStats(ZSIM_EV, zinfo->outputDir, true, timestamp);
+    const char* cmpStatsFile =  ZsimFileNameForStats(ZSIM_CMP, zinfo->outputDir, true, timestamp);
+    const char* statsFile    =  ZsimFileNameForStats(ZSIM_OUT, zinfo->outputDir, true, timestamp);
+    const char* poStatsFile    =  ZsimFileNameForStats(ZSIM_POUT, zinfo->outputDir, true, timestamp);
 
     if (zinfo->statsPhaseInterval) {
         const char* periodicStatsFilter = config.get<const char*>("sim.periodicStatsFilter", "");
@@ -966,6 +974,25 @@ static void PostInitStats(bool perProcessDir, Config& config, string suffix_str=
         zinfo->statsBackends->push_back(zinfo->periodicStatsBackend);
     } else {
         zinfo->periodicStatsBackend = nullptr;
+    }
+
+    if (zinfo->outputPhaseInterval) {
+        zinfo->periodicOutputStatsBackend = new TextBackend(poStatsFile, zinfo->rootStat);;
+        zinfo->periodicOutputStatsBackend->dump(true); //must have a first sample
+
+        class PeriodicOutputDumpEvent : public Event {
+            public:
+                explicit PeriodicOutputDumpEvent(uint32_t period) : Event(period) {}
+                void callback() {
+                    zinfo->trigger = 20000;
+                    zinfo->periodicOutputStatsBackend->dump(true /*buffered*/);
+                }
+        };
+
+        zinfo->eventQueue->insert(new PeriodicOutputDumpEvent(zinfo->outputPhaseInterval));
+        zinfo->statsBackends->push_back(zinfo->periodicOutputStatsBackend);
+    } else {
+        zinfo->periodicOutputStatsBackend = nullptr;
     }
 
     zinfo->eventualStatsBackend = new HDF5Backend(evStatsFile, zinfo->rootStat, (1 << 17) /* 128KB chunks */, zinfo->skipStatsVectors, false /* don't sum regular aggregates*/);
@@ -1031,9 +1058,9 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
         // wont check the value but another validation wont hurt.
         std::snprintf(date_cbuf,15, "%ld", nixTime.tv_sec );
     }
-    string suffix_str(&date_cbuf[0]);
+    string timestamp(&date_cbuf[0]);
 
-    const char* outCfgFile = ZsimFileNameForStats(OUT_CFG, zinfo->outputDir, true, suffix_str);
+    const char* outCfgFile = ZsimFileNameForStats(OUT_CFG, zinfo->outputDir, true, timestamp);
     Config config(configFile);
 
     //Debugging
@@ -1082,6 +1109,7 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
 
     zinfo->phaseLength = config.get<uint32_t>("sim.phaseLength", 10000);
     zinfo->statsPhaseInterval = config.get<uint32_t>("sim.statsPhaseInterval", 100);
+    zinfo->outputPhaseInterval = config.get<uint32_t>("sim.outputPhaseInterval", 0);
     zinfo->freqMHz = config.get<uint32_t>("sys.frequency", 2000);
 
     //Maxima/termination conditions
@@ -1148,7 +1176,7 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
     zinfo->pinCmd = new PinCmd(&config, nullptr /*don't pass config file to children --- can go either way, it's optional*/, outputDir, shmid);
 
     //Caches, cores, memory controllers
-    InitSystem(config);
+    InitSystem(config, timestamp);
 
     //Sched stats (deferred because of circular deps)
     if (zinfo->sched) zinfo->sched->initStats(zinfo->rootStat);
@@ -1168,7 +1196,7 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid) {
     zinfo->rootStat->append(zinfo->profHeartbeats);
 
     bool perProcessDir = config.get<bool>("sim.perProcessDir", false);
-    PostInitStats(perProcessDir, config, suffix_str);
+    PostInitStats(perProcessDir, config, timestamp);
 
     zinfo->perProcessCpuEnum = config.get<bool>("sim.perProcessCpuEnum", false);
 

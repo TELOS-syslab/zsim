@@ -45,7 +45,7 @@ class MemoryController : public MemObject {
                               double timing_scale);  // DDR memory builder
 
    public:
-    MemoryController(g_string& name, uint32_t freqMHz, uint32_t domain, Config& config);
+    MemoryController(g_string& name, uint32_t freqMHz, uint32_t domain, Config& config, std::string timestamp="");
     uint64_t access(MemReq& req) override;  // MemObject interface
     const char* getName() override { return _name.c_str(); }
     void initStats(AggregateStat* parentStat) override;

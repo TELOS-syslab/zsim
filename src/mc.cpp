@@ -1,10 +1,15 @@
 #include "mc.h"
-
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
 #include "cache/alloy.h"
 #include "cache/banshee.h"
 #include "cache/cacheonly.h"
 #include "cache/copycache.h"
 #include "cache/ndc.h"
+#include "cache/ideal_balanced.h"
 #include "cache/nocache.h"
 #include "cache/unison.h"
 #include "ddr_mem.h"
@@ -13,7 +18,13 @@
 #include "mem_ctrls.h"
 #include "zsim.h"
 
-MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t domain, Config& config)
+// Helper function to check if a directory exists
+inline bool file_exists(const std::string& path) {
+    struct stat info;
+    return stat(path.c_str(), &info) == 0;
+}
+
+MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t domain, Config& config, std::string timestamp)
     : _name(name), _cur_trace_len(0), _max_trace_len(10000) {
     // Initialize tracing
     _collect_trace = config.get<bool>("sys.mem.enableTrace", false);
@@ -27,8 +38,6 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
     }
 
     g_string scheme = config.get<const char*>("sys.mem.cache_scheme", "NoCache");
-
-
 
     // Configure external DRAM
     _ext_type = config.get<const char*>("sys.mem.ext_dram.type", "Simple");
@@ -51,6 +60,12 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
         string dramTechIni = config.get<const char*>("sys.mem.ext_dram.techIni");
         string dramSystemIni = config.get<const char*>("sys.mem.ext_dram.systemIni");
         string outputDir = config.get<const char*>("sys.mem.ext_dram.outputDir");
+        outputDir = outputDir + "/" + timestamp;
+        if (!file_exists(outputDir)) {
+            if (mkdir(outputDir.c_str(), 0777) != 0) {
+                panic("Could not create directory %s: %s", outputDir.c_str(), strerror(errno));
+            }
+        }
         string traceName = config.get<const char*>("sys.mem.ext_dram.traceName", "dramsim");
         traceName += "_ext";
         _ext_dram = (DRAMSimMemory*)gm_malloc(sizeof(DRAMSimMemory));
@@ -60,9 +75,15 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
         int cpuFreqMHz = freqMHz;
         string dramIni = config.get<const char*>("sys.mem.ext_dram.configIni");
         string outputDir = config.get<const char*>("sys.mem.ext_dram.outputDir");
+        outputDir = outputDir + "/" + timestamp;
+        if (!file_exists(outputDir)) {
+            if (mkdir(outputDir.c_str(), 0777) != 0) {
+                panic("Could not create directory %s: %s", outputDir.c_str(), strerror(errno));
+            }
+        }
+        uint32_t latency = config.get<uint32_t>("sys.mem.ext_dram.latency", 100);
         info("Initializing DRAMSim3 with config %s, output dir %s, freq %d MHz",
              dramIni.c_str(), outputDir.c_str(), cpuFreqMHz);
-        uint32_t latency = config.get<uint32_t>("sys.mem.ext_dram.latency", 100);
         _ext_dram = (DRAMSim3Memory*)gm_malloc(sizeof(DRAMSim3Memory));
         new (_ext_dram) DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, latency, domain, ext_dram_name);
     } else
@@ -97,6 +118,12 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
                 string dramTechIni = config.get<const char*>("sys.mem.mcdram.techIni");
                 string dramSystemIni = config.get<const char*>("sys.mem.mcdram.systemIni");
                 string outputDir = config.get<const char*>("sys.mem.mcdram.outputDir");
+                outputDir = outputDir + "/" + timestamp;
+                if (!file_exists(outputDir)) {
+                    if (mkdir(outputDir.c_str(), 0777) != 0) {
+                        panic("Could not create directory %s: %s", outputDir.c_str(), strerror(errno));
+                    }
+                }
                 string traceName = config.get<const char*>("sys.mem.mcdram.traceName");
                 traceName += "_mc";
                 traceName += to_string(i);
@@ -107,8 +134,16 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
                 int cpuFreqMHz = freqMHz;
                 string dramIni = config.get<const char*>("sys.mem.mcdram.configIni");
                 string outputDir = config.get<const char*>("sys.mem.mcdram.outputDir");
+                outputDir = outputDir + "/" + timestamp;
+                if (!file_exists(outputDir)) {
+                    if (mkdir(outputDir.c_str(), 0777) != 0) {
+                        panic("Could not create directory %s: %s", outputDir.c_str(), strerror(errno));
+                    }
+                }
                 uint32_t latency = config.get<uint32_t>("sys.mem.mcdram.latency", 0);
                 _mcdram[i] = (DRAMSim3Memory*)gm_malloc(sizeof(DRAMSim3Memory));
+                info("Initializing DRAMSim3 with config %s, output dir %s, freq %d MHz",
+                     dramIni.c_str(), outputDir.c_str(), cpuFreqMHz);
                 new (_mcdram[i]) DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, latency, domain, mcdram_name);
             } else
                 panic("Invalid memory controller type %s", _mcdram_type.c_str());
@@ -139,6 +174,9 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
     } else if (scheme == "NDC") {
         _scheme = NDC;
         _cache_scheme = new (gm_malloc(sizeof(NDCScheme))) NDCScheme(config, this);
+    } else if (scheme == "IdealBalanced") {
+        _scheme = IdealBalanced;
+        _cache_scheme = new (gm_malloc(sizeof(IdealBalancedScheme))) IdealBalancedScheme(config, this);
     } else {
         panic("Invalid cache scheme %s", scheme.c_str());
     }

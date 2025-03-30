@@ -98,6 +98,7 @@ struct GlobSimInfo {
     uint32_t phaseLength;
     uint32_t statsPhaseInterval;
     uint32_t freqMHz;
+    uint32_t outputPhaseInterval;
 
     //Maxima/termination conditions
     uint64_t maxPhases; //terminate when this many phases have been reached
@@ -143,6 +144,7 @@ struct GlobSimInfo {
     AggregateStat* rootStat;
     g_vector<StatsBackend*>* statsBackends; // used for termination dumps
     StatsBackend* periodicStatsBackend;
+    StatsBackend* periodicOutputStatsBackend;
     StatsBackend* eventualStatsBackend;
     ProcessStats* processStats;
     ProcStats* procStats;

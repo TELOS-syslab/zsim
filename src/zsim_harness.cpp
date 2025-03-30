@@ -350,6 +350,11 @@ int main(int argc, char *argv[]) {
 
     if (argc <= 2) {
         info("Usage: %s config_file [output_dir]", argv[0]);
+        info("   config_file: Configuration file to use. Required.");
+        info("   output_dir: Output directory for logs and stats. Optional, defaults to current directory.");
+        info("Configuration options:");
+        info("   sim.outputInterval: Number of phases between zsim.output dumps (0 to disable)");
+        info("   sim.statsPhaseInterval: Number of phases between statistics dumps (0 to disable)");
         exit(1);
     }
 
@@ -390,17 +395,10 @@ int main(int argc, char *argv[]) {
 
     // Convert outputDir to string and create the mem path
     std::string memPath = std::string(outputDir) + "/mem";
-    
-    // Check if directory exists and remove it recursively if it does
-    if (access(memPath.c_str(), F_OK) != -1) {
-        if (removeDirectory(memPath.c_str()) != 0) {
-            warn("Could not remove directory %s: %s", memPath.c_str(), strerror(errno));
+    if (access(memPath.c_str(), F_OK) == -1) {
+        if (mkdir(memPath.c_str(), 0777) != 0) {
+            panic("Could not create directory %s: %s", memPath.c_str(), strerror(errno));
         }
-    }
-    
-    // Create directory with permissions
-    if (mkdir(memPath.c_str(), 0777) != 0) {
-        panic("Could not create directory %s: %s", memPath.c_str(), strerror(errno));
     }
 
     uint32_t gmSize = conf.get<uint32_t>("sim.gmMBytes", (1<<10) /*default 1024MB*/);
