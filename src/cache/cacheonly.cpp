@@ -3,7 +3,7 @@
 #include "mc.h"
 
 uint64_t CacheOnlyScheme::access(MemReq& req) {
-    Address address = req.lineAddr;
+    Address address = req.lineAddr % _ext_size;
     uint32_t mcdram_select = (address / 64) % _mc->_mcdram_per_mc;
     Address mc_address = (address / 64 / _mc->_mcdram_per_mc * 64) | (address % 64);
 

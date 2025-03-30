@@ -18,7 +18,6 @@ class IdealBalancedScheme : public CacheScheme {
     Counter _numStoreHit;
     Counter _numStoreMiss;
 
-    uint64_t _ext_size;
     uint32_t _num_cache_bits, _num_ext_bits, _num_shift_bits;
     uint64_t _num_line_entries, _current_way;
     LineEntry* _line_entries;
@@ -33,7 +32,6 @@ class IdealBalancedScheme : public CacheScheme {
         assert(_num_sets == 1);
         _num_shift_bits = 6;
 
-        _ext_size = (uint64_t)config.get<uint32_t>("sys.mem.ext_dram.size", 128) * 1024 * 1024;
         _num_cache_bits = ceil(log2(_cache_size / _granularity));
         _num_ext_bits = ceil(log2(_ext_size / _granularity));
         _num_line_entries = _ext_size / _granularity;

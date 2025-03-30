@@ -4,7 +4,7 @@
 
 uint64_t AlloyCacheScheme::access(MemReq& req) {
     ReqType type = (req.type == GETS || req.type == GETX) ? LOAD : STORE;
-	Address address = req.lineAddr;
+	Address address = req.lineAddr % _ext_size;
 	uint32_t mcdram_select = (address / 64) % _mc->_mcdram_per_mc;
 	Address mc_address = (address / 64 / _mc->_mcdram_per_mc * 64) | (address % 64); 
 	Address tag = address / (_granularity / 64);
@@ -14,13 +14,13 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
     MESIState state;
     bool counter_access = false;
 
-    info("access: address = %ld, mc_address = %ld, tag = %ld, set_num = %ld", address, mc_address, tag, set_num);
+    // info("access: address = %ld, mc_address = %ld, tag = %ld, set_num = %ld", address, mc_address, tag, set_num);
     // Check for hit
     if (_cache[set_num].ways[0].valid &&
         _cache[set_num].ways[0].tag == tag &&
         set_num >= _ds_index) {
         hit_way = 0;
-        info("!!!!!hit:  _cache[set_num].ways[0].tag = %ld",  _cache[set_num].ways[0].tag);
+        // info("!!!!!hit:  _cache[set_num].ways[0].tag = %ld",  _cache[set_num].ways[0].tag);
     }
 
     // Handle tag access for loads

@@ -17,6 +17,7 @@ class CacheScheme {
     uint64_t _granularity;  // Cache line size
     uint64_t _num_ways;     // Associativity
     uint64_t _cache_size;   // Total cache size in bytes
+    uint64_t _ext_size;     // Total external memory size in bytes
     uint64_t _num_sets;     // Number of sets
     Set* _cache;            // Cache structure
     bool _sram_tag;         // SRAM tag flag
@@ -46,6 +47,10 @@ class CacheScheme {
         _granularity = config.get<uint32_t>("sys.mem.mcdram.cache_granularity", 64);
         _num_ways = config.get<uint32_t>("sys.mem.mcdram.num_ways", 1);
         _cache_size = (uint64_t)config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024 * 1024;
+        _ext_size = (uint64_t)config.get<uint32_t>("sys.mem.ext_dram.size", 0) * 1024 * 1024;
+        if (_ext_size == 0) {
+            _ext_size = 0xFFFFFFFFFFFFFFFF;
+        }
         if (_num_ways == 0) {
             _num_ways = _cache_size / _granularity;
         }
