@@ -10,12 +10,12 @@ uint64_t NDCScheme::access(MemReq& req) {
     ReqType type = (req.type == GETS || req.type == GETX) ? LOAD : STORE;
     Address address = req.lineAddr;
 
-    // Compute MCDRAM channel and address mapping (similar to Alloy)
     uint32_t mcdram_select = 0;
-    Address mc_address = address;
-    uint64_t set_num = getSetNum(address);
-    Address tag = getTag(address);
-    // info("set_num = %ld, tag = %ld, address = %ld\n", set_num, tag, address);
+    Address mc_address = phyAddr2cacheAddr(address);
+    uint64_t set_num = getSetNum(mc_address);
+    Address tag = getTag(mc_address);
+
+    // info("phy_addr = 0x%lx, cache_addr = 0x%lx, set_num = %ld, tag = 0x%lx\n", address, mc_address, set_num, tag);
 
     // Check for cache hit
     uint32_t hit_way = _num_ways;
