@@ -24,7 +24,7 @@ inline bool file_exists(const std::string& path) {
     return stat(path.c_str(), &info) == 0;
 }
 
-MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t domain, Config& config, std::string timestamp)
+MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t domain, Config& config, std::string suffix_str)
     : _name(name), _cur_trace_len(0), _max_trace_len(10000) {
     // Initialize tracing
     _collect_trace = config.get<bool>("sys.mem.enableTrace", false);
@@ -60,7 +60,7 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
         string dramTechIni = config.get<const char*>("sys.mem.ext_dram.techIni");
         string dramSystemIni = config.get<const char*>("sys.mem.ext_dram.systemIni");
         string outputDir = config.get<const char*>("sys.mem.ext_dram.outputDir");
-        outputDir = outputDir + "/" + timestamp;
+        outputDir = outputDir + "/" + suffix_str;
         if (!file_exists(outputDir)) {
             if (mkdir(outputDir.c_str(), 0777) != 0) {
                 panic("Could not create directory %s: %s", outputDir.c_str(), strerror(errno));
@@ -75,7 +75,7 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
         int cpuFreqMHz = freqMHz;
         string dramIni = config.get<const char*>("sys.mem.ext_dram.configIni");
         string outputDir = config.get<const char*>("sys.mem.ext_dram.outputDir");
-        outputDir = outputDir + "/" + timestamp;
+        outputDir = outputDir + "/" + suffix_str;
         if (!file_exists(outputDir)) {
             if (mkdir(outputDir.c_str(), 0777) != 0) {
                 panic("Could not create directory %s: %s", outputDir.c_str(), strerror(errno));
@@ -118,7 +118,7 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
                 string dramTechIni = config.get<const char*>("sys.mem.mcdram.techIni");
                 string dramSystemIni = config.get<const char*>("sys.mem.mcdram.systemIni");
                 string outputDir = config.get<const char*>("sys.mem.mcdram.outputDir");
-                outputDir = outputDir + "/" + timestamp;
+                outputDir = outputDir + "/" + suffix_str;
                 if (!file_exists(outputDir)) {
                     if (mkdir(outputDir.c_str(), 0777) != 0) {
                         panic("Could not create directory %s: %s", outputDir.c_str(), strerror(errno));
@@ -134,7 +134,7 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
                 int cpuFreqMHz = freqMHz;
                 string dramIni = config.get<const char*>("sys.mem.mcdram.configIni");
                 string outputDir = config.get<const char*>("sys.mem.mcdram.outputDir");
-                outputDir = outputDir + "/" + timestamp;
+                outputDir = outputDir + "/" + suffix_str;
                 if (!file_exists(outputDir)) {
                     if (mkdir(outputDir.c_str(), 0777) != 0) {
                         panic("Could not create directory %s: %s", outputDir.c_str(), strerror(errno));

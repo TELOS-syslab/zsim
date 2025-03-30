@@ -37,7 +37,7 @@
 #define QUOTED_(x) #x
 #define QUOTED(x) QUOTED_(x)
 
-PinCmd::PinCmd(Config* conf, const char* configFile, const char* outputDir, uint64_t shmid) {
+PinCmd::PinCmd(Config* conf, const char* configFile, const char* outputDir, uint64_t shmid, const char* category) {
     //Figure the program paths
     const char* zsimEnvPath = getenv("ZSIM_PATH");
     g_string pinPath, zsimPath;
@@ -104,6 +104,11 @@ PinCmd::PinCmd(Config* conf, const char* configFile, const char* outputDir, uint
 
     args.push_back("-shmid");
     args.push_back(shmid_ss.str().c_str());
+
+    if (category) {
+        args.push_back("-category");
+        args.push_back(category);
+    }
 
     if (conf->get<bool>("sim.logToFile", false)) {
         args.push_back("-logToFile");

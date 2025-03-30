@@ -218,6 +218,10 @@ static void printHeartbeat(GlobSimInfo* zinfo, const char* outputDir) {
     gethostname(hostname, 256);
 
     std::string hbPath = std::string(outputDir) + "/heartbeat";
+    if (zinfo->category) {
+        hbPath += "." + std::string(zinfo->category);
+    }
+    
     std::ofstream hb(hbPath.c_str());
     hb << "Running on: " << hostname << std::endl;
     hb << "Start time: " << ctime_r(&startTime, time);
@@ -349,9 +353,10 @@ int main(int argc, char *argv[]) {
     startTime = time(nullptr);
 
     if (argc <= 2) {
-        info("Usage: %s config_file [output_dir]", argv[0]);
+        info("Usage: %s config_file [output_dir] [category]", argv[0]);
         info("   config_file: Configuration file to use. Required.");
         info("   output_dir: Output directory for logs and stats. Optional, defaults to current directory.");
+        info("   category: Category of the simulation. Optional, defaults to ''.");
         info("Configuration options:");
         info("   sim.outputInterval: Number of phases between zsim.output dumps (0 to disable)");
         info("   sim.statsPhaseInterval: Number of phases between statistics dumps (0 to disable)");
@@ -361,6 +366,7 @@ int main(int argc, char *argv[]) {
     //Canonicalize paths --- because we change dirs, we deal in absolute paths
     const char* configFile = realpath(argv[1], nullptr);
     const char* outputDir = argv[2] ? realpath(argv[2], nullptr) : getcwd(nullptr, 0); //already absolute
+    const char* category = argv[3] ? argv[3] : "";
 
     Config conf(configFile);
 
@@ -387,7 +393,11 @@ int main(int argc, char *argv[]) {
     uint32_t removedLogfiles = 0;
     while (true) {
         std::stringstream ss;
-        ss << outputDir << "/zsim.log." << removedLogfiles;
+        if (category) {
+            ss << outputDir << "/zsim.log." << category << "." << removedLogfiles;
+        } else {
+            ss << outputDir << "/zsim.log." << removedLogfiles;
+        }
         if (remove(ss.str().c_str()) != 0) break;
         removedLogfiles++;
     }
@@ -433,7 +443,7 @@ int main(int argc, char *argv[]) {
     if (aslr) info("Not disabling ASLR, multiprocess runs will fail");
 
     //Create children processes
-    pinCmd = new PinCmd(&conf, configFile, outputDir, shmid);
+    pinCmd = new PinCmd(&conf, configFile, outputDir, shmid, category);
     uint32_t numProcs = pinCmd->getNumCmdProcs();
 
     for (uint32_t procIdx = 0; procIdx < numProcs; procIdx++) {

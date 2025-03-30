@@ -106,7 +106,8 @@ class NDCScheme : public CacheScheme {
     }
 
     DramAddress mapAddress(Address address) const {
-        uint64_t hex_addr = address >> _num_shift_bits;
+        // uint64_t hex_addr = address >> _num_shift_bits;
+        uint64_t hex_addr = address; // line address is already shifted
         int channel = (hex_addr >> _ch_pos) & _ch_mask;
         int rank = (hex_addr >> _ra_pos) & _ra_mask;
         int bg = (hex_addr >> _bg_pos) & _bg_mask;
@@ -118,8 +119,8 @@ class NDCScheme : public CacheScheme {
 
     // Ultra-optimized physical address to cache address conversion
     inline Address phyAddr2cacheAddr(Address phy_addr) {
-        // Shift out cache line offset bits
-        uint64_t hex_addr = phy_addr >> _num_shift_bits;
+        // uint64_t hex_addr = phy_addr >> _num_shift_bits;
+        uint64_t hex_addr = phy_addr; // line address is already shifted
 
         // Initialize the cache address
         uint64_t cache_addr = 0;
@@ -181,12 +182,12 @@ class NDCScheme : public CacheScheme {
             bit_pos++;
         }
 
-        cache_addr = (cache_addr << _num_shift_bits) | (phy_addr & ((1ULL << _num_shift_bits) - 1)) | (phy_addr & (_pred_tag_mask << _num_shift_bits));
+        cache_addr = cache_addr | (phy_addr & _pred_tag_mask);
         return cache_addr;
     }
 
     inline uint64_t getSetNum(Address cache_addr) {
-        uint64_t hex_addr = cache_addr >> _num_shift_bits;
+        uint64_t hex_addr = cache_addr;
         uint64_t index = 0;
         uint64_t bit_pos = 0;
 
@@ -207,8 +208,8 @@ class NDCScheme : public CacheScheme {
 
     // Get tag from cache address - optimized version
     inline uint64_t getTag(Address cache_addr) {
-        uint64_t hex_addr = cache_addr >> _num_shift_bits;
-        return (hex_addr >> _co_pos) & ((1ULL << _num_cache_tag_bits) - 1) | (cache_addr & (_pred_tag_mask << _num_shift_bits));
+        uint64_t hex_addr = cache_addr;
+        return (hex_addr >> _co_pos) & ((1ULL << _num_cache_tag_bits) - 1) | (cache_addr & _pred_tag_mask);
     }
 
     uint64_t access(MemReq& req) override;

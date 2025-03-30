@@ -11,10 +11,10 @@ uint64_t IdealBalancedScheme::access(MemReq& req) {
     Address address = req.lineAddr;
 
     uint32_t mcdram_select = 0;
-    Address mc_address = address & ((1ULL << (_num_ext_bits + _num_shift_bits)) - 1);
+    Address mc_address = address & ((1ULL << (_num_ext_bits)) - 1);
     uint64_t set_num = 0;
-    Address tag = mc_address >> _num_shift_bits;
-    uint64_t line_num = tag & ((1ULL << (_num_ext_bits + _num_shift_bits)) - 1);
+    Address tag = mc_address;
+    uint64_t line_num = tag & ((1ULL << (_num_ext_bits)) - 1);
 
     // info("phy_addr = 0x%lx, cache_addr = 0x%lx, set_num = %ld, tag = 0x%lx, line_num = %ld\n", address, mc_address, set_num, tag, line_num);
 
@@ -168,7 +168,7 @@ void IdealBalancedScheme::period(MemReq& req) {
 
 void IdealBalancedScheme::initStats(AggregateStat* parentStat) {
     AggregateStat* stats = new AggregateStat();
-    stats->init("ndcCache", "IdealBalanced Cache stats");
+    stats->init("idealBalancedCache", "IdealBalanced Cache stats");
     _numCleanEviction.init("cleanEvict", "Clean Eviction");
     stats->append(&_numCleanEviction);
     _numDirtyEviction.init("dirtyEvict", "Dirty Eviction");

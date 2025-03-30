@@ -84,7 +84,8 @@ KNOB<bool> KnobLogToFile(KNOB_MODE_WRITEONCE, "pintool",
 KNOB<string> KnobOutputDir(KNOB_MODE_WRITEONCE, "pintool",
         "outputDir", "./", "absolute path to write output files into");
 
-
+KNOB<string> KnobCategory(KNOB_MODE_WRITEONCE, "pintool",
+        "category", "", "category of the simulation");
 
 /* ===================================================================== */
 
@@ -1060,7 +1061,11 @@ VOID AfterForkInChild(THREADID tid, const CONTEXT* ctxt, VOID * arg) {
     char header[64];
     snprintf(header, sizeof(header), "[S %dF] ", procIdx); //append an F to distinguish forked from fork/exec'd
     std::stringstream logfile_ss;
-    logfile_ss << zinfo->outputDir << "/zsim.log." << procIdx;
+    if (zinfo->category) {
+        logfile_ss << zinfo->outputDir << "/zsim.log." << zinfo->category << "." << procIdx;
+    } else {
+        logfile_ss << zinfo->outputDir << "/zsim.log." << procIdx;
+    }
     InitLog(header, KnobLogToFile.Value()? logfile_ss.str().c_str() : nullptr);
 
     info("Forked child (tid %d/%d), PID %d, parent PID %d", tid, PIN_ThreadId(), PIN_GetPid(), getppid());
@@ -1454,7 +1459,11 @@ int main(int argc, char *argv[]) {
     char header[64];
     snprintf(header, sizeof(header), "[S %d] ", procIdx);
     std::stringstream logfile_ss;
-    logfile_ss << KnobOutputDir.Value() << "/zsim.log." << procIdx;
+    if (KnobCategory.Value().c_str()) {
+        logfile_ss << KnobOutputDir.Value() << "/zsim.log." << KnobCategory.Value() << "." << procIdx;
+    } else {
+        logfile_ss << KnobOutputDir.Value() << "/zsim.log." << procIdx;
+    }
     InitLog(header, KnobLogToFile.Value()? logfile_ss.str().c_str() : nullptr);
 
     //If parent dies, kill us
@@ -1478,7 +1487,7 @@ int main(int argc, char *argv[]) {
 		#ifdef BBL_PROFILING
 		  globalProfile = Decoder::instruction_profiling_init();
 		#endif
-        SimInit(KnobConfigFile.Value().c_str(), KnobOutputDir.Value().c_str(), KnobShmid.Value());
+        SimInit(KnobConfigFile.Value().c_str(), KnobOutputDir.Value().c_str(), KnobShmid.Value(), KnobCategory.Value().c_str());
     } else {
         while (!gm_isready()) usleep(1000);  // wait till proc idx 0 initializes everything
         zinfo = static_cast<GlobSimInfo*>(gm_get_glob_ptr());

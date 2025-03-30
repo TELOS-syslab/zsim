@@ -50,6 +50,9 @@ class CacheScheme {
             _num_ways = _cache_size / _granularity;
         }
         _num_sets = _cache_size / _num_ways / _granularity;
+
+        info("cache_size = %ld, num_ways = %ld, num_sets = %ld, granularity = %ld", _cache_size, _num_ways, _num_sets, _granularity);
+
         // _cache = new Set[_num_sets];
         _cache = (Set*)gm_malloc(sizeof(Set) * _num_sets);
         for (uint64_t i = 0; i < _num_sets; i++) {
