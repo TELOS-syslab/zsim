@@ -24,17 +24,20 @@
  */
 
 #include "pin_cmd.h"
+#include <algorithm>
 #include <iostream>
+#include <sys/utsname.h>
 #include <sstream>
 #include <string>
 #include <wordexp.h> //for posix-shell command expansion
 #include "config.h"
+#include "pin.H"
 
 //Funky macro expansion stuff
 #define QUOTED_(x) #x
 #define QUOTED(x) QUOTED_(x)
 
-PinCmd::PinCmd(Config* conf, const char* configFile, const char* outputDir, uint64_t shmid) {
+PinCmd::PinCmd(Config* conf, const char* configFile, const char* outputDir, uint64_t shmid, const char* category) {
     //Figure the program paths
     const char* zsimEnvPath = getenv("ZSIM_PATH");
     g_string pinPath, zsimPath;
@@ -65,8 +68,17 @@ PinCmd::PinCmd(Config* conf, const char* configFile, const char* outputDir, uint
     }
     wordfree(&p);
 
+    // HACK to make pin work on linux kernel4+
+    struct utsname sysinfo;
+    uname(&sysinfo);
+    if (PIN_PRODUCT_VERSION_MAJOR <= 2 && sysinfo.release[0] >= '4'
+            && std::find(args.begin(), args.end(), "-injection") == args.end()) {
+        // args.push_back("-injection");
+        // args.push_back("child");
+	    args.push_back("-ifeellucky");
+    }
+
     //Load tool
-    args.push_back("-ifeellucky"); //bypass kernel version check
     args.push_back("-t");
     args.push_back(zsimPath);
 
@@ -92,6 +104,11 @@ PinCmd::PinCmd(Config* conf, const char* configFile, const char* outputDir, uint
 
     args.push_back("-shmid");
     args.push_back(shmid_ss.str().c_str());
+
+    if (category) {
+        args.push_back("-category");
+        args.push_back(category);
+    }
 
     if (conf->get<bool>("sim.logToFile", false)) {
         args.push_back("-logToFile");

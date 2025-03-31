@@ -127,6 +127,7 @@ uint64_t DRAMSimMemory::access(MemReq& req, int type, uint32_t data_size) {
     	    	tr.endEvent->addChild(ev, zinfo->eventRecorders[req.srcId]);
 				tr.endEvent = ev;
 			}
+            assert(!zinfo->eventRecorders[req.srcId]->hasRecord());
         	zinfo->eventRecorders[req.srcId]->pushRecord(tr);
 		} else if (type == 1) { // append the current event to the end of the previous one
        	 	TimingRecord tr = zinfo->eventRecorders[req.srcId]->popRecord();

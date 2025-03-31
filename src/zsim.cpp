@@ -61,6 +61,8 @@
 #include "stats.h"
 #include "trace_driver.h"
 #include "virt/virt.h"
+#include "mc.h"
+#include "dramsim3_mem_ctrl.h"
 
 //#include <signal.h> //can't include this, conflicts with PIN's
 
@@ -82,7 +84,8 @@ KNOB<bool> KnobLogToFile(KNOB_MODE_WRITEONCE, "pintool",
 KNOB<string> KnobOutputDir(KNOB_MODE_WRITEONCE, "pintool",
         "outputDir", "./", "absolute path to write output files into");
 
-
+KNOB<string> KnobCategory(KNOB_MODE_WRITEONCE, "pintool",
+        "category", "", "category of the simulation");
 
 /* ===================================================================== */
 
@@ -292,7 +295,7 @@ VOID FFITrackNFFInterval() {
     uint64_t* _ffiPrevFFStartInstrs = ffiPrevFFStartInstrs;
     auto ffiGet = [p, startInstrs]() { return zinfo->processStats->getProcessInstrs(p) - startInstrs; };
     auto ffiFire = [p, _ffiFFStartInstrs, _ffiPrevFFStartInstrs]() {
-        info("FFI: Entering fast-forward for process %d", p);
+        info("FFI: Entering fast-forward for process %d (ffiInstrsDone %ld, current %ld, limit %ld)", p, ffiInstrsDone, zinfo->processStats->getProcessInstrs(p) - *ffiFFStartInstrs, ffiInstrsLimit);
         /* Note this is sufficient due to the lack of reinstruments on FF, and this way we do not need to touch global state */
         futex_lock(&zinfo->ffLock);
         assert(!zinfo->procArray[p]->isInFastForward());
@@ -301,7 +304,8 @@ VOID FFITrackNFFInterval() {
         *_ffiPrevFFStartInstrs = *_ffiFFStartInstrs;
         *_ffiFFStartInstrs = zinfo->processStats->getProcessInstrs(p);
     };
-    zinfo->eventQueue->insert(makeAdaptiveEvent(ffiGet, ffiFire, 0, ffiInstrsLimit - ffiInstrsDone, MAX_IPC*zinfo->phaseLength));
+    info("FFI: Inserting event with ffiInstrsDone %ld, current %ld (%ld - %ld), limit %ld ", ffiInstrsDone, ffiGet(), zinfo->processStats->getProcessInstrs(p), startInstrs, ffiInstrsLimit - ffiInstrsDone);
+    zinfo->eventQueue->insert(makeAdaptiveEvent(ffiGet, ffiFire, 0, ffiInstrsLimit - ffiInstrsDone, MAX_IPC*zinfo->phaseLength*zinfo->numCores));
 
     ffiNFF = true;
 }
@@ -345,7 +349,7 @@ VOID FFIBasicBlock(THREADID tid, ADDRINT bblAddr, BblInfo* bblInfo) {
         FFIAdvance();
         assert(procTreeNode->isInFastForward());
         futex_lock(&zinfo->ffLock);
-        info("FFI: Exiting fast-forward");
+        info("FFI: Thread %d exiting fast-forward", tid);
         ExitFastForward();
         futex_unlock(&zinfo->ffLock);
         FFITrackNFFInterval();
@@ -533,6 +537,8 @@ static void PrintIp(THREADID tid, ADDRINT ip) {
 VOID Instruction(INS ins) {
     //Uncomment to print an instruction trace
     //INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)PrintIp, IARG_THREAD_ID, IARG_REG_VALUE, REG_INST_PTR, IARG_END);
+    // std::string disString = INS_Disassemble(ins);
+    // info("%s\xa" ,disString.c_str());
 
     if (!procTreeNode->isInFastForward() || !zinfo->ffReinstrument) {
         AFUNPTR LoadFuncPtr = (AFUNPTR) IndirectLoadSingle;
@@ -1055,7 +1061,11 @@ VOID AfterForkInChild(THREADID tid, const CONTEXT* ctxt, VOID * arg) {
     char header[64];
     snprintf(header, sizeof(header), "[S %dF] ", procIdx); //append an F to distinguish forked from fork/exec'd
     std::stringstream logfile_ss;
-    logfile_ss << zinfo->outputDir << "/zsim.log." << procIdx;
+    if (zinfo->category) {
+        logfile_ss << zinfo->outputDir << "/zsim.log." << zinfo->category << "." << procIdx;
+    } else {
+        logfile_ss << zinfo->outputDir << "/zsim.log." << procIdx;
+    }
     InitLog(header, KnobLogToFile.Value()? logfile_ss.str().c_str() : nullptr);
 
     info("Forked child (tid %d/%d), PID %d, parent PID %d", tid, PIN_ThreadId(), PIN_GetPid(), getppid());
@@ -1098,6 +1108,7 @@ VOID SimEnd() {
     //per-process
 #ifdef BBL_PROFILING
     Decoder::dumpBblProfile();
+	Decoder::dumpGlobalProfile(globalProfile);
 #endif
 
     //global
@@ -1117,11 +1128,19 @@ VOID SimEnd() {
         for (StatsBackend* backend : *(zinfo->statsBackends)) backend->dump(false /*unbuffered, write out*/);
         for (AccessTraceWriter* t : *(zinfo->traceWriters)) t->dump(false);  // flushes trace writer
 
+        // Print DRAMSim3 stats
+        for (MemObject* mem : zinfo->memControllers) {
+            mem->printStats();
+        }
+
         if (zinfo->sched) zinfo->sched->notifyTermination();
     }
 
     //Uncomment when debugging termination races, which can be rare because they are triggered by threads of a dying process
     //sleep(5);
+	 #ifdef BBL_PROFILING
+		free(globalProfile);
+	 #endif
 
     exit(0);
 }
@@ -1440,7 +1459,11 @@ int main(int argc, char *argv[]) {
     char header[64];
     snprintf(header, sizeof(header), "[S %d] ", procIdx);
     std::stringstream logfile_ss;
-    logfile_ss << KnobOutputDir.Value() << "/zsim.log." << procIdx;
+    if (KnobCategory.Value().c_str()) {
+        logfile_ss << KnobOutputDir.Value() << "/zsim.log." << KnobCategory.Value() << "." << procIdx;
+    } else {
+        logfile_ss << KnobOutputDir.Value() << "/zsim.log." << procIdx;
+    }
     InitLog(header, KnobLogToFile.Value()? logfile_ss.str().c_str() : nullptr);
 
     //If parent dies, kill us
@@ -1461,7 +1484,10 @@ int main(int argc, char *argv[]) {
     bool masterProcess = false;
     if (procIdx == 0 && !gm_isready()) {  // process 0 can exec() without fork()ing first, so we must check gm_isready() to ensure we don't initialize twice
         masterProcess = true;
-        SimInit(KnobConfigFile.Value().c_str(), KnobOutputDir.Value().c_str(), KnobShmid.Value());
+		#ifdef BBL_PROFILING
+		  globalProfile = Decoder::instruction_profiling_init();
+		#endif
+        SimInit(KnobConfigFile.Value().c_str(), KnobOutputDir.Value().c_str(), KnobShmid.Value(), KnobCategory.Value().c_str());
     } else {
         while (!gm_isready()) usleep(1000);  // wait till proc idx 0 initializes everything
         zinfo = static_cast<GlobSimInfo*>(gm_get_glob_ptr());
@@ -1561,6 +1587,16 @@ int main(int argc, char *argv[]) {
             EndOfPhaseActions();
             zinfo->numPhases++;
             zinfo->globPhaseCycles += zinfo->phaseLength;
+		#ifdef BBL_PROFILING
+			// rsv Maybe Ill need a lock..
+			zinfo->dumpBblcontrol++;
+			/* I'd like to have this statistics even if the simulation it is crashing, dont care by "planking" the file */
+			if ( zinfo->dumpBblcontrol > 50000 ) {
+				Decoder::dumpGlobalProfile(globalProfile );	
+				zinfo->dumpBblcontrol = 0;
+			}
+		#endif
+
         }
         info("Finished trace-driven simulation");
         SimEnd();
@@ -1570,3 +1606,4 @@ int main(int argc, char *argv[]) {
     }
     return 0;
 }
+

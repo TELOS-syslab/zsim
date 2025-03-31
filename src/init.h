@@ -29,6 +29,6 @@
 #include <stdint.h>
 
 /* Read configuration options, configure system */
-void SimInit(const char* configFile, const char* outputDir, uint32_t shmid);
+void SimInit(const char* configFile, const char* outputDir, uint32_t shmid, const char* category);
 
 #endif  // INIT_H_

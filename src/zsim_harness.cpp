@@ -38,6 +38,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <errno.h>
 #include "config.h"
 #include "constants.h"
 #include "debug_harness.h"
@@ -201,7 +204,7 @@ static time_t startTime;
 static time_t lastHeartbeatTime;
 static uint64_t lastCycles = 0;
 
-static void printHeartbeat(GlobSimInfo* zinfo) {
+static void printHeartbeat(GlobSimInfo* zinfo, const char* outputDir) {
     uint64_t cycles = zinfo->numPhases*zinfo->phaseLength;
     time_t curTime = time(nullptr);
     time_t elapsedSecs = curTime - startTime;
@@ -214,7 +217,12 @@ static void printHeartbeat(GlobSimInfo* zinfo) {
     char hostname[256];
     gethostname(hostname, 256);
 
-    std::ofstream hb("heartbeat");
+    std::string hbPath = std::string(outputDir) + "/heartbeat";
+    if (zinfo->category) {
+        hbPath += "." + std::string(zinfo->category);
+    }
+    
+    std::ofstream hb(hbPath.c_str());
     hb << "Running on: " << hostname << std::endl;
     hb << "Start time: " << ctime_r(&startTime, time);
     hb << "Heartbeat time: " << ctime_r(&curTime, time);
@@ -305,6 +313,34 @@ void LaunchProcess(uint32_t procIdx) {
     }
 }
 
+int removeDirectory(const char* path) {
+    DIR* dir = opendir(path);
+    if (dir == nullptr) {
+        return -1;
+    }
+
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        // Skip . and ..
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+
+        std::string fullPath = std::string(path) + "/" + entry->d_name;
+        struct stat statbuf;
+        if (stat(fullPath.c_str(), &statbuf) == -1) {
+            continue;
+        }
+
+        if (S_ISDIR(statbuf.st_mode)) {
+            removeDirectory(fullPath.c_str());
+        } else {
+            unlink(fullPath.c_str());
+        }
+    }
+    closedir(dir);
+    return rmdir(path);
+}
 
 int main(int argc, char *argv[]) {
     if (argc == 2 && std::string(argv[1]) == "-v") {
@@ -316,14 +352,21 @@ int main(int argc, char *argv[]) {
     info("Starting zsim, built %s (rev %s)", ZSIM_BUILDDATE, ZSIM_BUILDVERSION);
     startTime = time(nullptr);
 
-    if (argc != 2) {
-        info("Usage: %s config_file", argv[0]);
+    if (argc <= 2) {
+        info("Usage: %s config_file [output_dir] [category]", argv[0]);
+        info("   config_file: Configuration file to use. Required.");
+        info("   output_dir: Output directory for logs and stats. Optional, defaults to current directory.");
+        info("   category: Category of the simulation. Optional, defaults to ''.");
+        info("Configuration options:");
+        info("   sim.outputInterval: Number of phases between zsim.output dumps (0 to disable)");
+        info("   sim.statsPhaseInterval: Number of phases between statistics dumps (0 to disable)");
         exit(1);
     }
 
     //Canonicalize paths --- because we change dirs, we deal in absolute paths
     const char* configFile = realpath(argv[1], nullptr);
-    const char* outputDir = getcwd(nullptr, 0); //already absolute
+    const char* outputDir = argv[2] ? realpath(argv[2], nullptr) : getcwd(nullptr, 0); //already absolute
+    const char* category = argv[3] ? argv[3] : "";
 
     Config conf(configFile);
 
@@ -350,11 +393,23 @@ int main(int argc, char *argv[]) {
     uint32_t removedLogfiles = 0;
     while (true) {
         std::stringstream ss;
-        ss << "zsim.log." << removedLogfiles;
+        if (category) {
+            ss << outputDir << "/zsim.log." << category << "." << removedLogfiles;
+        } else {
+            ss << outputDir << "/zsim.log." << removedLogfiles;
+        }
         if (remove(ss.str().c_str()) != 0) break;
         removedLogfiles++;
     }
     if (removedLogfiles) info("Removed %d old logfiles", removedLogfiles);
+
+    // Convert outputDir to string and create the mem path
+    std::string memPath = std::string(outputDir) + "/mem";
+    if (access(memPath.c_str(), F_OK) == -1) {
+        if (mkdir(memPath.c_str(), 0777) != 0) {
+            panic("Could not create directory %s: %s", memPath.c_str(), strerror(errno));
+        }
+    }
 
     uint32_t gmSize = conf.get<uint32_t>("sim.gmMBytes", (1<<10) /*default 1024MB*/);
     info("Creating global segment, %d MBs", gmSize);
@@ -388,7 +443,7 @@ int main(int argc, char *argv[]) {
     if (aslr) info("Not disabling ASLR, multiprocess runs will fail");
 
     //Create children processes
-    pinCmd = new PinCmd(&conf, configFile, outputDir, shmid);
+    pinCmd = new PinCmd(&conf, configFile, outputDir, shmid, category);
     uint32_t numProcs = pinCmd->getNumCmdProcs();
 
     for (uint32_t procIdx = 0; procIdx < numProcs; procIdx++) {
@@ -416,7 +471,7 @@ int main(int argc, char *argv[]) {
             info("Attached to global heap");
         }
 
-        printHeartbeat(zinfo);  // ensure we dump hostname etc on early crashes
+        printHeartbeat(zinfo, outputDir);  // ensure we dump hostname etc on early crashes
 
         int left = sleep(sleepLength);
         int secsSlept = sleepLength - left;
@@ -448,7 +503,7 @@ int main(int argc, char *argv[]) {
             } //otherwise, activeProcs == 0; we're done
         }
 
-        printHeartbeat(zinfo);
+        printHeartbeat(zinfo, outputDir);
 
         //This solves a weird race in multiprocess where SIGCHLD does not always fire...
         int cpid = -1;
@@ -469,7 +524,6 @@ int main(int argc, char *argv[]) {
         info("All children done, exiting");
     } else {
         info("Graceful termination finished, exiting");
-        exitCode = 1;
     }
     if (zinfo && zinfo->globalActiveProcs) warn("Unclean exit of %d children, termination stats were most likely not dumped", zinfo->globalActiveProcs);
     exit(exitCode);

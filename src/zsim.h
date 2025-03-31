@@ -29,9 +29,11 @@
 #include <stdint.h>
 #include <sys/time.h>
 #include "constants.h"
+#include "mem_ctrls.h"
 #include "debug.h"
 #include "locks.h"
 #include "pad.h"
+#include <iostream> // for debug added
 
 class Core;
 class Scheduler;
@@ -96,6 +98,7 @@ struct GlobSimInfo {
     uint32_t phaseLength;
     uint32_t statsPhaseInterval;
     uint32_t freqMHz;
+    uint32_t outputPhaseInterval;
 
     //Maxima/termination conditions
     uint64_t maxPhases; //terminate when this many phases have been reached
@@ -114,6 +117,11 @@ struct GlobSimInfo {
     //Writable, rarely read, unshared in a single phase
     uint64_t numPhases;
     uint64_t globPhaseCycles; //just numPhases*phaseCycles. It behooves us to precompute it, since it is very frequently used in tracing code.
+    uint64_t requeueCycles;
+#if BBL_PROFILING
+	 uint64_t dumpBblcontrol;
+
+#endif
 
     uint64_t procEventualDumps;
 
@@ -132,10 +140,12 @@ struct GlobSimInfo {
     volatile bool terminationConditionMet;
 
     const char* outputDir; //all the output files mst be dumped here. Stored because complex workloads often change dir, then spawn...
-
+    const char* category; //category of the simulation
+    
     AggregateStat* rootStat;
     g_vector<StatsBackend*>* statsBackends; // used for termination dumps
     StatsBackend* periodicStatsBackend;
+    StatsBackend* periodicOutputStatsBackend;
     StatsBackend* eventualStatsBackend;
     ProcessStats* processStats;
     ProcStats* procStats;
@@ -181,6 +191,9 @@ struct GlobSimInfo {
     // Trace-driven simulation (no cores)
     bool traceDriven;
     TraceDriver* traceDriver;
+
+    //Memory controllers
+    g_vector<MemObject*> memControllers; // Add this field to store memory controllers
 };
 
 

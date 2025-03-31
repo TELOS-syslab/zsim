@@ -1,5 +1,4 @@
-#include "line_placement.h"
-#include "mc.h"
+#include "placement/line_placement.h"
 #include <stdlib.h>
 
 void

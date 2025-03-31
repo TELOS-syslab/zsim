@@ -1,8 +1,5 @@
 build/opt/
-build/debug/
-.vscode/
 workspace/
-!workspace/run.sh
 zsim.out
 zsim.h5
 zsim-ev.h5
@@ -10,3 +7,16 @@ zsim-cmp.h5
 out.cfg
 heartbeat
 .sconsign.dblite
+
+**/.DS_Store
+**/.idea
+**/.vscode
+/build
+/bin
+/output
+/results
+/lib
+/contrib
+/.sconsign.dblite
+/bak*/
+/tests/benchmarks

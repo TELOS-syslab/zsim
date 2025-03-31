@@ -79,6 +79,8 @@
 #include "g_std/g_vector.h"
 #include "log.h"
 
+enum ZsimStatType :  uint8_t { ZSIM, ZSIM_EV, ZSIM_CMP, ZSIM_OUT, ZSIM_STAT_TYPES, OUT_CFG, ZSIM_POUT};
+
 class Stat : public GlobAlloc {
     protected:
         const char* _name;
