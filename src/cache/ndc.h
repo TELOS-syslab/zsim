@@ -55,7 +55,7 @@ class NDCScheme : public CacheScheme {
         _num_cache_tag_bits = ceil(log2(_num_ways));
         _num_index_bits = ceil(log2(_num_sets));
         _num_cache_bits = _num_cache_tag_bits + _num_index_bits;
-        _num_ext_bits = ceil(log2(_ext_size / _granularity));
+        _num_ext_bits = ceil(log2(_ext_size / 64));
         _num_pred_tag_bits = _num_ext_bits - _num_cache_bits;
         _pred_tag_mask = ((1ULL << _num_pred_tag_bits) - 1) << _num_cache_bits;
         assert(_num_cache_bits <= _num_ext_bits);

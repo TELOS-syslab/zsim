@@ -37,6 +37,7 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
         futex_init(&_lock);
     }
 
+    _bw_balance = config.get<bool>("sys.mem.bwBalance", false);
     g_string scheme = config.get<const char*>("sys.mem.cache_scheme", "NoCache");
 
     // Configure external DRAM
@@ -218,7 +219,7 @@ uint64_t MemoryController::access(MemReq& req) {
     uint64_t result = _cache_scheme->access(req);
 
     // Handle bandwidth balance if needed
-    if (_num_requests % _step_length == 0) {
+    if (_bw_balance && _num_requests % _step_length == 0) {
         _cache_scheme->period(req);
     }
 

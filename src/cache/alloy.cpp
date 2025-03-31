@@ -4,7 +4,7 @@
 
 uint64_t AlloyCacheScheme::access(MemReq& req) {
     ReqType type = (req.type == GETS || req.type == GETX) ? LOAD : STORE;
-	Address address = req.lineAddr % _ext_size;
+	Address address = req.lineAddr % (_ext_size / 64);
 	uint32_t mcdram_select = (address / 64) % _mc->_mcdram_per_mc;
 	Address mc_address = (address / 64 / _mc->_mcdram_per_mc * 64) | (address % 64); 
 	Address tag = address / (_granularity / 64);

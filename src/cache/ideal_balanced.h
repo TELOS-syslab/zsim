@@ -32,18 +32,19 @@ class IdealBalancedScheme : public CacheScheme {
         assert(_num_sets == 1);
         _num_shift_bits = 6;
 
-        _num_cache_bits = ceil(log2(_cache_size / _granularity));
-        _num_ext_bits = ceil(log2(_ext_size / _granularity));
-        _num_line_entries = _ext_size / _granularity;
+        _num_cache_bits = ceil(log2(_cache_size / 64));
+        _num_ext_bits = ceil(log2(_ext_size / 64));
+        _num_line_entries = _ext_size / 64;
         assert(_num_cache_bits <= _num_ext_bits);
+
+        info("IdealBalancedScheme initialized with %ld ways, %ld sets, %ld cache size, %ld ext size, %ld line entries", _num_ways, _num_sets, _cache_size, _ext_size, _num_line_entries);
+        info("num_cache_bits = %ld, num_ext_bits = %ld, num_shift_bits = %ld", _num_cache_bits, _num_ext_bits, _num_shift_bits);
 
         _line_entries = (LineEntry*)gm_malloc(sizeof(LineEntry) * _num_line_entries);
         for (uint64_t i = 0; i < _num_line_entries; i++) {
             _line_entries[i].way = _num_ways;
         }
-        _current_way = 0;
-        info("IdealBalancedScheme initialized with %ld ways, %ld sets, %ld cache size, %ld ext size, %ld line entries", _num_ways, _num_sets, _cache_size, _ext_size, _num_line_entries);
-        info("num_cache_bits = %ld, num_ext_bits = %ld, num_shift_bits = %ld", _num_cache_bits, _num_ext_bits, _num_shift_bits);
+        _current_way = 0; 
     }
 
     uint64_t access(MemReq& req) override;

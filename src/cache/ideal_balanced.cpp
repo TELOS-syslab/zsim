@@ -8,7 +8,7 @@
 uint64_t IdealBalancedScheme::access(MemReq& req) {
     // Determine request type
     ReqType type = (req.type == GETS || req.type == GETX) ? LOAD : STORE;
-    Address address = req.lineAddr % _ext_size;
+    Address address = req.lineAddr % (_ext_size / 64);
 
     uint32_t mcdram_select = 0;
     Address mc_address = address;
