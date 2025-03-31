@@ -66,7 +66,7 @@ void CopyCacheScheme::period(MemReq& req) {
 
 void CopyCacheScheme::initStats(AggregateStat* parentStat) {
     AggregateStat* stats = new AggregateStat();
-    stats->init("cacheOnly", "CopyCache stats");
+    stats->init("copyCache", "Copy Cache stats");
     _numLoadHit.init("loadHit", "Load Hit");
     stats->append(&_numLoadHit);
     parentStat->append(stats);

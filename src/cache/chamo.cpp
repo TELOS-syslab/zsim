@@ -444,7 +444,7 @@ void CHAMOScheme::period(MemReq& req) {
 
 void CHAMOScheme::initStats(AggregateStat* parentStat) {
     AggregateStat* stats = new AggregateStat();
-    stats->init("idealBalancedCache", "IdealBalanced Cache stats");
+    stats->init("chamoCache", "CHAMO Cache stats");
     _numCleanEviction.init("cleanEvict", "Clean Eviction");
     stats->append(&_numCleanEviction);
     _numDirtyEviction.init("dirtyEvict", "Dirty Eviction");

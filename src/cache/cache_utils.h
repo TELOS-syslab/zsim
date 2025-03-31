@@ -15,6 +15,7 @@ enum Scheme {
     NDC,
     IdealBalanced,
     IdealAssociative,
+    IdealFully,
     CHAMO,
     UNKNOWN
 };

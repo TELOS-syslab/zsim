@@ -13,6 +13,7 @@
 #include "cache/copycache.h"
 #include "cache/ideal_associative.h"
 #include "cache/ideal_balanced.h"
+#include "cache/ideal_fully.h"
 #include "cache/ndc.h"
 #include "cache/nocache.h"
 #include "cache/unison.h"
@@ -185,6 +186,9 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
     } else if (scheme == "IdealAssociative") {
         _scheme = IdealAssociative;
         _cache_scheme = new (gm_malloc(sizeof(IdealAssociativeScheme))) IdealAssociativeScheme(config, this);
+    } else if (scheme == "IdealFully") {
+        _scheme = IdealFully;
+        _cache_scheme = new (gm_malloc(sizeof(IdealFullyScheme))) IdealFullyScheme(config, this);
     } else if (scheme == "CHAMO") {
         _scheme = CHAMO;
         _cache_scheme = new (gm_malloc(sizeof(CHAMOScheme))) CHAMOScheme(config, this);

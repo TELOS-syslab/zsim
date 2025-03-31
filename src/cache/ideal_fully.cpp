@@ -1,31 +1,50 @@
-#include "cache/ideal_associative.h"
+#include "cache/ideal_fully.h"
 
 #include <cstdlib>  // For std::rand
+#include <algorithm> // For std::find
 #include <vector>
 
 #include "mc.h"
 
-uint64_t IdealAssociativeScheme::access(MemReq& req) {
+// Update LRU state when a way is accessed
+void IdealFullyScheme::updateLRU(uint32_t way) {
+    // Find the way in the LRU list
+    auto it = std::find(_lru_list.begin(), _lru_list.end(), way);
+    if (it != _lru_list.end()) {
+        // Remove the way from its current position
+        _lru_list.erase(it);
+    }
+    // Insert the way at the front (most recently used position)
+    _lru_list.insert(_lru_list.begin(), way);
+}
+
+// Get the least recently used way
+uint32_t IdealFullyScheme::getLRUWay() {
+    // The LRU way is at the back of the list
+    return _lru_list.back();
+}
+
+uint64_t IdealFullyScheme::access(MemReq& req) {
     // Determine request type
     ReqType type = (req.type == GETS || req.type == GETX) ? LOAD : STORE;
     Address address = req.lineAddr % (_ext_size / 64);
 
     uint32_t mcdram_select = 0;
     Address mc_address = address;
-    Address tag = address;
-    uint64_t set_num = tag % _num_sets;
+    uint64_t set_num = 0;
+    Address tag = mc_address;
+    uint64_t line_num = tag;
 
     // info("phy_addr = 0x%lx, cache_addr = 0x%lx, set_num = %ld, tag = 0x%lx, line_num = %ld\n", address, mc_address, set_num, tag, line_num);
 
     // Check for cache hit
     uint32_t hit_way = _num_ways;
-    for (uint32_t way = 0; way < _num_ways; way++) {
-        if (_cache[set_num].ways[way].valid && _cache[set_num].ways[way].tag == tag) {
-            hit_way = way;
-            break;
+    if (_line_entries[line_num].way < _num_ways) {
+        hit_way = _line_entries[line_num].way;
+        if (!(_cache[set_num].ways[hit_way].valid && _cache[set_num].ways[hit_way].tag == tag)) {
+            hit_way = _num_ways;
         }
     }
-
 
     uint64_t data_ready_cycle = 0;
     MESIState state;
@@ -41,6 +60,9 @@ uint64_t IdealAssociativeScheme::access(MemReq& req) {
             _num_hit_per_step++;
             _numLoadHit.inc();
             data_ready_cycle = req.cycle;  // Data available after cache latency
+            
+            // Update LRU - move this way to most recently used position
+            updateLRU(hit_way);
         } else {
             // Cache miss: Fetch from main memory and fill the cache
             _num_miss_per_step++;
@@ -51,42 +73,30 @@ uint64_t IdealAssociativeScheme::access(MemReq& req) {
             data_ready_cycle = _mc->_ext_dram->access(main_memory_req, 1, 4);
             _ext_bw_per_step += 4;
 
-            // Fill cache
-            // Victim selection: prefer invalid, then clean, then dirty (random among equals)
-            std::vector<uint32_t> candidates;
-            for (uint32_t way = 0; way < _num_ways; way++) {
-                if (!_cache[set_num].ways[way].valid) {
-                    candidates.push_back(way);
-                }
-            }
-            if (candidates.empty()) {
-                for (uint32_t way = 0; way < _num_ways; way++) {
-                    if (_cache[set_num].ways[way].valid && !_cache[set_num].ways[way].dirty) {
-                        candidates.push_back(way);
-                    }
-                }
-            }
-            if (candidates.empty()) {
-                for (uint32_t way = 0; way < _num_ways; way++) {
-                    if (_cache[set_num].ways[way].valid && _cache[set_num].ways[way].dirty) {
-                        candidates.push_back(way);
-                    }
-                }
-            }
-            uint32_t victim_way = candidates[std::rand() % candidates.size()];
+            // Select victim way using LRU policy
+            uint32_t victim_way;
+            // Get the least recently used way
+            victim_way = getLRUWay();
+            _line_entries[line_num].way = victim_way;
 
             // Handle eviction if victim is dirty
             if (_cache[set_num].ways[victim_way].valid && _cache[set_num].ways[victim_way].dirty) {
+                _numDirtyEviction.inc();
                 Address wb_address = _cache[set_num].ways[victim_way].tag * _granularity;
                 MemReq wb_req = {wb_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
                 _mc->_ext_dram->access(wb_req, 2, 4);  // Write-back to main memory
                 _ext_bw_per_step += 4;
+            } else if (_cache[set_num].ways[victim_way].valid) {
+                _numCleanEviction.inc();
             }
 
             // Insert new line (fill operation)
             _cache[set_num].ways[victim_way].tag = tag;
             _cache[set_num].ways[victim_way].valid = true;
             _cache[set_num].ways[victim_way].dirty = false;  // LOAD: line is clean
+            
+            // Update LRU - move this way to most recently used position
+            updateLRU(victim_way);
         }
     } else {  // STORE
         // Simulate cache write access
@@ -100,54 +110,46 @@ uint64_t IdealAssociativeScheme::access(MemReq& req) {
             _numStoreHit.inc();
             _cache[set_num].ways[hit_way].dirty = true;
             data_ready_cycle = req.cycle;
+            
+            // Update LRU - move this way to most recently used position
+            updateLRU(hit_way);
         } else {
             // Write miss
             _num_miss_per_step++;
             _numStoreMiss.inc();
 
-            // Victim selection: prefer invalid, then clean, then dirty (random among equals)
-            std::vector<uint32_t> candidates;
-            for (uint32_t way = 0; way < _num_ways; way++) {
-                if (!_cache[set_num].ways[way].valid) {
-                    candidates.push_back(way);
-                }
-            }
-            if (candidates.empty()) {
-                for (uint32_t way = 0; way < _num_ways; way++) {
-                    if (_cache[set_num].ways[way].valid && !_cache[set_num].ways[way].dirty) {
-                        candidates.push_back(way);
-                    }
-                }
-            }
-            if (candidates.empty()) {
-                for (uint32_t way = 0; way < _num_ways; way++) {
-                    if (_cache[set_num].ways[way].valid && _cache[set_num].ways[way].dirty) {
-                        candidates.push_back(way);
-                    }
-                }
-            }
-            uint32_t victim_way = candidates[std::rand() % candidates.size()];
+            // Select victim way using LRU policy
+            uint32_t victim_way;
+            // Get the least recently used way
+            victim_way = getLRUWay();
+            _line_entries[line_num].way = victim_way;
 
             // Handle eviction if victim is dirty
             if (_cache[set_num].ways[victim_way].valid && _cache[set_num].ways[victim_way].dirty) {
+                _numDirtyEviction.inc();
                 Address wb_address = _cache[set_num].ways[victim_way].tag * _granularity;
                 MemReq wb_req = {wb_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-                _mc->_ext_dram->access(wb_req, 2, 4);  // Write-back to main memory, non-critical
+                _mc->_ext_dram->access(wb_req, 2, 4);  // Write-back to main memory
                 _ext_bw_per_step += 4;
+            } else if (_cache[set_num].ways[victim_way].valid) {
+                _numCleanEviction.inc();
             }
-
+            
             // Insert new line
             _cache[set_num].ways[victim_way].tag = tag;
             _cache[set_num].ways[victim_way].valid = true;
             _cache[set_num].ways[victim_way].dirty = true;  // STORE: mark as dirty
             data_ready_cycle = req.cycle;
+            
+            // Update LRU - move this way to most recently used position
+            updateLRU(victim_way);
         }
     }
 
     return data_ready_cycle;
 }
 
-void IdealAssociativeScheme::period(MemReq& req) {
+void IdealFullyScheme::period(MemReq& req) {
     _num_hit_per_step /= 2;
     _num_miss_per_step /= 2;
     _mc_bw_per_step /= 2;
@@ -194,9 +196,9 @@ void IdealAssociativeScheme::period(MemReq& req) {
     }
 }
 
-void IdealAssociativeScheme::initStats(AggregateStat* parentStat) {
+void IdealFullyScheme::initStats(AggregateStat* parentStat) {
     AggregateStat* stats = new AggregateStat();
-    stats->init("idealAssociativeCache", "IdealAssociative Cache stats");
+    stats->init("idealFullyCache", "Fully Associative Cache with LRU stats");
     _numCleanEviction.init("cleanEvict", "Clean Eviction");
     stats->append(&_numCleanEviction);
     _numDirtyEviction.init("dirtyEvict", "Dirty Eviction");
