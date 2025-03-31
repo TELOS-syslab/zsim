@@ -64,6 +64,8 @@ class FilterCache : public Cache {
         uint64_t fGETSHit, fGETXHit;
 		// this is not an accurate tlb. It just randomize the page nums   
 		bool _enable_tlb;
+        bool _enable_jonny;
+        uint64_t _jonny_ptr;
 		drand48_data _buffer;
 		g_unordered_map <Address, Address> _tlb;
 		g_unordered_set <Address> _exist_pgnum; 
@@ -81,6 +83,7 @@ class FilterCache : public Cache {
             srcId = -1;
             reqFlags = 0;
 			_enable_tlb = config.get<bool>("sim.enableTLB", false);
+            _enable_jonny = config.get<bool>("sim.enableJonny", false);
 			srand48_r((uint64_t)this, &_buffer);
         }
 
@@ -150,11 +153,16 @@ class FilterCache : public Cache {
 				uint64_t pgnum;
         	    futex_lock(&filterLock);
 				if (_tlb.find(vpgnum) == _tlb.end()) {
-					do {
-						int64_t rand;
-						lrand48_r(&_buffer, &rand);
-						pgnum = rand & 0x000fffffffffffff;
-					} while (_exist_pgnum.find(pgnum) != _exist_pgnum.end());
+                    if (_enable_jonny) {
+                        pgnum = _jonny_ptr;
+                        _jonny_ptr++;
+                    } else {
+                        do {
+                            int64_t rand;
+                            lrand48_r(&_buffer, &rand);
+                            pgnum = rand & 0x000fffffffffffff;
+                        } while (_exist_pgnum.find(pgnum) != _exist_pgnum.end());
+                    }
 					_tlb[vpgnum] = pgnum;
 					_exist_pgnum.insert( pgnum );
 				} else 

@@ -315,7 +315,7 @@ uint64_t CHAMOScheme::access(MemReq& req) {
     // info("phy_addr = 0x%lx, cache_addr = 0x%lx, set_num = %ld, tag = 0x%lx, line_num = %ld\n", address, mc_address, set_num, tag, line_num);
 
     // Check for cache hit
-    uint32_t hit_way = _num_ways;
+    uint32_t hit_way = 0;
     if (!(_cache[set_num].ways[hit_way].valid && _cache[set_num].ways[hit_way].tag == tag)) {
         hit_way = _num_ways;
     }
@@ -353,6 +353,9 @@ uint64_t CHAMOScheme::access(MemReq& req) {
                 MemReq wb_req = {wb_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
                 _mc->_ext_dram->access(wb_req, 2, 4);  // Write-back to main memory
                 _ext_bw_per_step += 4;
+                _numDirtyEviction.inc();
+            } else if (_cache[set_num].ways[victim_way].valid) {
+                _numCleanEviction.inc();
             }
 
             // Insert new line (fill operation)
@@ -383,6 +386,9 @@ uint64_t CHAMOScheme::access(MemReq& req) {
                 MemReq wb_req = {wb_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
                 _mc->_ext_dram->access(wb_req, 2, 4);  // Write-back to main memory, non-critical
                 _ext_bw_per_step += 4;
+                _numDirtyEviction.inc();
+            } else if (_cache[set_num].ways[victim_way].valid) {
+                _numCleanEviction.inc();
             }
             // Insert new line
             _cache[set_num].ways[victim_way].tag = tag;

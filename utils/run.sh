@@ -6,8 +6,10 @@ if [ -z "$ZSIMPATH" ]; then
     ZSIMPATH='.'
 fi
 
-benchmark=$1
-cache_scheme=$2
+
+
+cache_scheme=$1
+category=$2
 
 #echo 18446744073692774399 > /proc/sys/kernel/shmmax
 sudo sysctl -w kernel.shmmax=18446744073692774399
@@ -30,6 +32,13 @@ cd $ZSIMPATH
 # ./bin/zsim tests/test-cacheonly.cfg output cacheonly
 # ./bin/zsim tests/test-debug.cfg output debug
 # ./bin/zsim tests/test-idealbalanced.cfg output idealbalanced-pr
-
-./bin/zsim tests/benchmarks/$benchmark/test-$cache_scheme.cfg output $cache_scheme-$benchmark
+if [ $category == "benchmarks" ]; then
+    benchmark="default"
+    if [ $# -ge 3 ]; then
+        benchmark=$3
+    fi
+    ./bin/zsim tests/$category/$benchmark/test-$cache_scheme.cfg output $cache_scheme-$benchmark
+else
+    ./bin/zsim tests/$category/test-$cache_scheme.cfg output $cache_scheme
+fi
 cd -

@@ -81,6 +81,9 @@ uint64_t IdealAssociativeScheme::access(MemReq& req) {
                 MemReq wb_req = {wb_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
                 _mc->_ext_dram->access(wb_req, 2, 4);  // Write-back to main memory
                 _ext_bw_per_step += 4;
+                _numDirtyEviction.inc();
+            } else if (_cache[set_num].ways[victim_way].valid) {
+                _numCleanEviction.inc();
             }
 
             // Insert new line (fill operation)
@@ -134,6 +137,9 @@ uint64_t IdealAssociativeScheme::access(MemReq& req) {
                 MemReq wb_req = {wb_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
                 _mc->_ext_dram->access(wb_req, 2, 4);  // Write-back to main memory, non-critical
                 _ext_bw_per_step += 4;
+                _numDirtyEviction.inc();
+            } else if (_cache[set_num].ways[victim_way].valid) {
+                _numCleanEviction.inc();
             }
 
             // Insert new line
