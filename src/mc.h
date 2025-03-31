@@ -8,6 +8,7 @@
 #include "g_std/g_unordered_map.h"
 #include "memory_hierarchy.h"
 #include "stats.h"
+
 #include "galloc.h"
 
 class DDRMemory;
@@ -23,6 +24,7 @@ class MemoryController : public MemObject {
     uint32_t _cur_trace_len;        // Current trace length
     uint32_t _max_trace_len;        // Maximum trace length
 	
+
     uint64_t _num_requests;
     bool _bw_balance;    // Bandwidth balancing flag
     uint64_t _ds_index;  // Data structure index

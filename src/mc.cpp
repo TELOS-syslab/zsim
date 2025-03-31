@@ -18,6 +18,7 @@
 #include "mem_ctrls.h"
 #include "zsim.h"
 
+
 // Helper function to check if a directory exists
 inline bool file_exists(const std::string& path) {
     struct stat info;
@@ -89,6 +90,7 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
         new (_ext_dram) DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, latency, domain, ext_dram_name);
     } else
         panic("Invalid memory controller type %s", _ext_type.c_str());
+
 
     // Configure MCDRAM if applicable
     if (_scheme != NoCache) {
@@ -207,6 +209,7 @@ uint64_t MemoryController::access(MemReq& req) {
     }
     if (req.type == PUTS) return req.cycle;
 
+
     futex_lock(&_lock);
 
     // Handle tracing if enabled
@@ -217,6 +220,7 @@ uint64_t MemoryController::access(MemReq& req) {
     _num_requests++;
     // Delegate access to CacheScheme
     uint64_t result = _cache_scheme->access(req);
+
 
     // Handle bandwidth balance if needed
     if (_bw_balance && _num_requests % _step_length == 0) {

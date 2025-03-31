@@ -35,6 +35,7 @@ syscallSrc = libEnv.Substfile("virt/syscall_name.cpp", "virt/syscall_name.cpp.in
 # globSrcNodes = Glob("*.cpp") + Glob("virt/*.cpp")
 globSrcNodes = Glob("*.cpp") + Glob("virt/*.cpp") + Glob("placement/*.cpp") + Glob("cache/*.cpp")
 libSrcs = [str(x) for x in globSrcNodes if str(x) not in excludeSrcs]
+libSrcs += [str(x) for x in hashSrcNodes if str(x) not in excludeSrcs]
 libSrcs += [str(x) for x in syscallSrc]
 libSrcs = list(set(libSrcs)) # ensure syscallSrc is not duplicated
 libEnv.SharedLibrary("zsim.so", libSrcs)
