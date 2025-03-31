@@ -6,6 +6,9 @@ if [ -z "$ZSIMPATH" ]; then
     ZSIMPATH='.'
 fi
 
+benchmark=$1
+cache_scheme=$2
+
 #echo 18446744073692774399 > /proc/sys/kernel/shmmax
 sudo sysctl -w kernel.shmmax=18446744073692774399
 sudo sysctl -w kernel.yama.ptrace_scope=0
@@ -26,5 +29,7 @@ cd $ZSIMPATH
 # ./bin/zsim tests/test-nocache.cfg output nocache
 # ./bin/zsim tests/test-cacheonly.cfg output cacheonly
 # ./bin/zsim tests/test-debug.cfg output debug
-./bin/zsim tests/test-idealbalanced.cfg output idealbalanced-pr
+# ./bin/zsim tests/test-idealbalanced.cfg output idealbalanced-pr
+
+./bin/zsim tests/benchmarks/$benchmark/test-$cache_scheme.cfg output $cache_scheme-$benchmark
 cd -

@@ -1,15 +1,19 @@
 #include "mc.h"
+
+#include <errno.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <errno.h>
-#include <string.h>
+
 #include "cache/alloy.h"
 #include "cache/banshee.h"
 #include "cache/cacheonly.h"
+#include "cache/chamo.h"
 #include "cache/copycache.h"
-#include "cache/ndc.h"
+#include "cache/ideal_associative.h"
 #include "cache/ideal_balanced.h"
+#include "cache/ndc.h"
 #include "cache/nocache.h"
 #include "cache/unison.h"
 #include "ddr_mem.h"
@@ -17,7 +21,6 @@
 #include "dramsim_mem_ctrl.h"
 #include "mem_ctrls.h"
 #include "zsim.h"
-
 
 // Helper function to check if a directory exists
 inline bool file_exists(const std::string& path) {
@@ -90,7 +93,6 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
         new (_ext_dram) DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, latency, domain, ext_dram_name);
     } else
         panic("Invalid memory controller type %s", _ext_type.c_str());
-
 
     // Configure MCDRAM if applicable
     if (_scheme != NoCache) {
@@ -180,6 +182,12 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
     } else if (scheme == "IdealBalanced") {
         _scheme = IdealBalanced;
         _cache_scheme = new (gm_malloc(sizeof(IdealBalancedScheme))) IdealBalancedScheme(config, this);
+    } else if (scheme == "IdealAssociative") {
+        _scheme = IdealAssociative;
+        _cache_scheme = new (gm_malloc(sizeof(IdealAssociativeScheme))) IdealAssociativeScheme(config, this);
+    } else if (scheme == "CHAMO") {
+        _scheme = CHAMO;
+        _cache_scheme = new (gm_malloc(sizeof(CHAMOScheme))) CHAMOScheme(config, this);
     } else {
         panic("Invalid cache scheme %s", scheme.c_str());
     }
@@ -209,7 +217,6 @@ uint64_t MemoryController::access(MemReq& req) {
     }
     if (req.type == PUTS) return req.cycle;
 
-
     futex_lock(&_lock);
 
     // Handle tracing if enabled
@@ -220,7 +227,6 @@ uint64_t MemoryController::access(MemReq& req) {
     _num_requests++;
     // Delegate access to CacheScheme
     uint64_t result = _cache_scheme->access(req);
-
 
     // Handle bandwidth balance if needed
     if (_bw_balance && _num_requests % _step_length == 0) {

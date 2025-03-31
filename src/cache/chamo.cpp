@@ -262,8 +262,12 @@ void CHAMOScheme::UpdateMappingInfo(uint64_t dram_cache_idx, uint64_t level_idx)
     return;
 }
 
-uint64_t CHAMOScheme::Index(uint64_t phy_line_addr)
+uint64_t CHAMOScheme::Index(uint64_t cache_addr)
 {
+
+    uint64_t phy_line_addr = lcg_.LCG_hash(cache_addr, 0);
+    assert(phy_line_addr < nr_cxl_cache_);
+
     hash_metric_.nr_period_access_cnt_ += 1;
 
     // 我们提出cxl_level的概念, e.g., DRAM:CXL = 1:4情况下，CXL_level = 4
