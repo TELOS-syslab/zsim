@@ -245,12 +245,13 @@ Address MemoryController::mapPage(Address vLineAddr) {
 
     Address vpgnum = vLineAddr >> (_page_bits - 6); 
     uint64_t pgnum;
+    // info("Johnny page mapping: vLineAddr = %lx, vpgnum = %lx", vLineAddr, vpgnum);
     if (_tlb.find(vpgnum) == _tlb.end()) {
         if (_page_map_scheme == "Johnny") {
             pgnum = _johnny_ptr;
             _johnny_ptr++;
             _johnny_ptr &= ((1UL << (_ext_bits - 6)) - 1);
-            info("Johnny page mapping: vLineAddr = %lx, vpgnum = %lx, _johnny_ptr = %lx", vLineAddr, vpgnum, _johnny_ptr);
+            // info("Johnny page mapping: _johnny_ptr = %lx", _johnny_ptr);
         } else if (_page_map_scheme == "Random") {
             do {
                 int64_t rand;
@@ -266,8 +267,9 @@ Address MemoryController::mapPage(Address vLineAddr) {
         _tlb[vpgnum] = pgnum;
         _exist_pgnum.insert(pgnum);
     } else 
-        pgnum = _tlb[vpgnum];	
+        pgnum = _tlb[vpgnum];
     pLineAddr = (pgnum << (_page_bits - 6)) | vLineAddr & ((1UL << (_page_bits - 6)) - 1);
+    // info("Page mapping: vLineAddr = %lx, vpgnum = %lx, pgnum = %lx, pLineAddr = %lx", vLineAddr, vpgnum, pgnum, pLineAddr);	
     return pLineAddr;
 }
 

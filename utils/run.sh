@@ -10,11 +10,11 @@ fi
 
 benchmark=""
 category=$1
-if [[ $category == "dramsim" || $category == "ddr" ]]; then
+if [[ $category == "debug" ]]; then
+    cache_scheme=$2
+else
     benchmark=$2
     cache_scheme=$3
-else
-    cache_scheme=$2
 fi
 
 

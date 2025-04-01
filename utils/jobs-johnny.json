@@ -1,7 +1,7 @@
 [
   {
-    "name": "johnny-ddr-chamo-johnny-lu",
-    "command": "./utils/run.sh ddr lu chamo-johnny",
+    "name": "johnny-ddr-chamo-johnny-cc",
+    "command": "./utils/run.sh ddr cc chamo-johnny",
     "working_dir": "~/chunk/git/git-own/zsim/"
   }
 ]
