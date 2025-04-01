@@ -156,6 +156,7 @@ class FilterCache : public Cache {
                     if (_enable_jonny) {
                         pgnum = _jonny_ptr;
                         _jonny_ptr++;
+                        _jonny_ptr %= 0x000fffffffffffff;
                     } else {
                         do {
                             int64_t rand;

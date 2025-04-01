@@ -312,7 +312,7 @@ uint64_t CHAMOScheme::access(MemReq& req) {
     assert(mc_address < _cache_size / 64);
     assert(address < _ext_size / 64);
 
-    // info("phy_addr = 0x%lx, cache_addr = 0x%lx, set_num = %ld, tag = 0x%lx, line_num = %ld\n", address, mc_address, set_num, tag, line_num);
+    info("lineAddr = 0x%lx, phy_addr = 0x%lx, cache_addr = 0x%lx, set_num = %ld, tag = 0x%lx\n", req.lineAddr, address, mc_address, set_num, tag);
 
     // Check for cache hit
     uint32_t hit_way = 0;

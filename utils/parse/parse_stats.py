@@ -642,18 +642,17 @@ def combine_plots(plots_dir: str):
             fig = plt.figure(figsize=(12, 6))
             ax = fig.add_subplot(111)
             
-            # Plot each category
-            for category, (cache_name, date, data) in hit_plots[window_size].items():
+            # Plot each category's hit rate only
+            colors = plt.cm.tab20(np.linspace(0, 1, len(hit_plots[window_size])))
+            for (category, (cache_name, date, data)), color in zip(hit_plots[window_size].items(), colors):
                 hit_rates = data['hit_rates']
-                miss_rates = data['miss_rates']
                 x = data['x']
                 
-                ax.plot(x, hit_rates, '-', label=f"{category} (Hit)", alpha=0.7)
-                ax.plot(x, miss_rates, '--', label=f"{category} (Miss)", alpha=0.7)
+                ax.plot(x, hit_rates, '-', label=category, color=color, alpha=0.7)
             
             ax.set_xlabel('Period')
-            ax.set_ylabel('Rate')
-            ax.set_title(f'Cache Performance Comparison\n(Window Size: {window_size})')
+            ax.set_ylabel('Hit Rate')
+            ax.set_title(f'Cache Hit Rate Comparison\n(Window Size: {window_size})')
             ax.set_ylim(-0.02, 1.02)
             ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
             
