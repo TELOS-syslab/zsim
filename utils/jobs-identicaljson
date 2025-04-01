@@ -1,0 +1,7 @@
+[
+  {
+    "name": "johnny-ddr-chamo-identical-lu",
+    "command": "./utils/run.sh ddr lu chamo-identical",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

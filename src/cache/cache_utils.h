@@ -16,6 +16,7 @@ enum Scheme {
     IdealBalanced,
     IdealAssociative,
     IdealFully,
+    IdealHotness,
     CHAMO,
     UNKNOWN
 };

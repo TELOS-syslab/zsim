@@ -9,7 +9,7 @@ fi
 cd $ZSIMPATH
 
 # Find all output directories matching the pattern
-output_dir="$ZSIMPATH/output/server03"
+output_dir="$ZSIMPATH/output/server03/1"
 for dir in "$output_dir"/*[\[\]]*; do
     if [ -d "$dir" ]; then
         echo "Processing directory: $dir"
@@ -22,6 +22,6 @@ for dir in "$output_dir"/*[\[\]]*; do
 done
 
 # ./utils/parse/parse_stats.py output/server03/20250331-023121[alloy-pr] hit 100 plot
-./utils/parse/parse_stats.py output/server03/20250331-023121[alloy-pr] combine
+./utils/parse/parse_stats.py output/server03/1 combine
 
 cd -

@@ -422,8 +422,8 @@ def plot_cache_rate_trend(hit_rates: List[float], miss_rates: List[float],
         # Plot hit and miss rates
         hit_line = ax.plot(x, hit_rates, 'o-', color='#1f77b4', label='Hit Rate', 
                           markerfacecolor='white', markeredgewidth=0.8, markersize=4)
-        miss_line = ax.plot(x, miss_rates, 's-', color='#d62728', label='Miss Rate',
-                          markerfacecolor='white', markeredgewidth=0.8, markersize=4)
+        # miss_line = ax.plot(x, miss_rates, 's-', color='#d62728', label='Miss Rate',
+        #                   markerfacecolor='white', markeredgewidth=0.8, markersize=4)
         
         # Customize the plot
         ax.set_xlabel('Period')
@@ -445,6 +445,9 @@ def plot_cache_rate_trend(hit_rates: List[float], miss_rates: List[float],
         # Save both the plot and the data
         output_filename = get_output_name(zsim_dir, cache_name=cache_name, 
                                         stat_type='hit', window_size=window_size)
+        
+        if not os.path.exists(plot_path):
+            os.makedirs(plot_path)
         plt.savefig(os.path.join(plot_path, output_filename), bbox_inches='tight', pad_inches=0.1)
         
         # Save the actual data points
@@ -507,6 +510,8 @@ def plot_ipc_trend(ipc_data, overall_ipc, zsim_dir, window_size, plot_path):
                  ncol=1 if n_cores <= 8 else 2)
         
         # Save both the plot and the data
+        if not os.path.exists(plot_path):
+            os.makedirs(plot_path)
         output_filename = get_output_name(zsim_dir, cache_name="system", stat_type='ipc', window_size=window_size)
         plt.savefig(os.path.join(plot_path, output_filename), bbox_inches='tight', pad_inches=0.1)
         
@@ -704,9 +709,7 @@ def main():
     start_time = time.time()
     zsim_dir = sys.argv[1]
     zsim_file = os.path.join(zsim_dir, "zsim-pout.out")
-    if not os.path.exists(zsim_file):
-        print(f"Error: zsim-pout.out not found in directory {zsim_dir}")
-        sys.exit(1)
+    
     plot_path = os.path.join(zsim_dir, "..", "plots")
     stat_type = sys.argv[2] if len(sys.argv) > 2 else "hit"
     window_size = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3].isdigit() else 1
@@ -716,6 +719,10 @@ def main():
     # Check if we're calculating cache rates with just "hit" or "miss"
     if stat_type.lower() in ["hit", "miss"]:
         # Parse file once to find cache paths
+        if not os.path.exists(zsim_file):
+            print(f"Error: zsim-pout.out not found in directory {zsim_dir}")
+            sys.exit(1)
+        
         data = parse_zsim_output(zsim_file)
         cache_paths = find_cache_paths(data)
         
@@ -775,6 +782,9 @@ def main():
     # Check if we should calculate IPC
     elif stat_type.lower() == "ipc":
         # Calculate IPC using the updated function
+        if not os.path.exists(zsim_file):
+            print(f"Error: zsim-pout.out not found in directory {zsim_dir}")
+            sys.exit(1)
         ipc_data, overall_ipc, _ = calculate_ipc(zsim_file, "root", window_size)
         
         if not ipc_data:
@@ -800,6 +810,7 @@ def main():
             plot_ipc_trend(ipc_data, overall_ipc, zsim_dir, window_size, plot_path)
 
     elif stat_type.lower() == "combine":
+        plot_path = os.path.join(zsim_dir, "plots")
         combine_plots(plot_path)
 
     else:

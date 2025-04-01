@@ -28,6 +28,7 @@
 
 #include "bithacks.h"
 #include "cache.h"
+#include "assert.h"
 #include "galloc.h"
 #include "zsim.h"
 #include "g_std/g_unordered_map.h"
@@ -64,8 +65,9 @@ class FilterCache : public Cache {
         uint64_t fGETSHit, fGETXHit;
 		// this is not an accurate tlb. It just randomize the page nums   
 		bool _enable_tlb;
-        bool _enable_jonny;
-        uint64_t _jonny_ptr;
+        bool _enable_johnny;
+        uint64_t _johnny_ptr;
+        uint64_t _mem_size;
 		drand48_data _buffer;
 		g_unordered_map <Address, Address> _tlb;
 		g_unordered_set <Address> _exist_pgnum; 
@@ -83,7 +85,13 @@ class FilterCache : public Cache {
             srcId = -1;
             reqFlags = 0;
 			_enable_tlb = config.get<bool>("sim.enableTLB", false);
-            _enable_jonny = config.get<bool>("sim.enableJonny", false);
+            _enable_johnny = config.get<bool>("sim.enableJohnny", false);
+            _johnny_ptr = 0;
+            _mem_size = (uint64_t)config.get<uint32_t>("sim.memSize", 0) << 20;
+            if (_mem_size == 0) {
+                _mem_size = 0x0000ffffffffffff; // 48bit address space, 281474976710656(256TB)
+            }
+            info("FilterCache: tlb enabled = %d, johnny enabled = %d, memSize = %ld Bytes", _enable_tlb, _enable_johnny, _mem_size);
 			srand48_r((uint64_t)this, &_buffer);
         }
 
@@ -149,26 +157,32 @@ class FilterCache : public Cache {
 			Address pLineAddr;
 			// page num = vLineAddr shifted by 6 bits. So it is shifted by 12 bits in total (4KB page size)
 			if (_enable_tlb) {
-				Address vpgnum = vLineAddr >> 6; 
+				Address vpgnum = vLineAddr >> 6; // Virtual page number
 				uint64_t pgnum;
-        	    futex_lock(&filterLock);
+				futex_lock(&filterLock);
 				if (_tlb.find(vpgnum) == _tlb.end()) {
-                    if (_enable_jonny) {
-                        pgnum = _jonny_ptr;
-                        _jonny_ptr++;
-                        _jonny_ptr %= 0x000fffffffffffff;
-                    } else {
-                        do {
-                            int64_t rand;
-                            lrand48_r(&_buffer, &rand);
-                            pgnum = rand & 0x000fffffffffffff;
-                        } while (_exist_pgnum.find(pgnum) != _exist_pgnum.end());
-                    }
+					if (_enable_johnny) {
+						pgnum = _johnny_ptr;
+						_johnny_ptr++;
+						if (_johnny_ptr >= _mem_size >> 6) {
+							_johnny_ptr = 0;
+							info("FilterCache: johnny_ptr reached max memory size, reset to 0");
+						}
+                        assert(_exist_pgnum.find(pgnum) == _exist_pgnum.end());
+					} else {
+						do {
+							int64_t rand;
+							lrand48_r(&_buffer, &rand);
+							pgnum = rand & 0x000fffffffffffff;
+						} while (_exist_pgnum.find(pgnum) != _exist_pgnum.end());
+					}
 					_tlb[vpgnum] = pgnum;
-					_exist_pgnum.insert( pgnum );
-				} else 
-					pgnum = _tlb[vpgnum];	
-				pLineAddr = procMask | (pgnum << 6) | (vLineAddr & 0x3f); 
+					_exist_pgnum.insert(pgnum);
+				} else {
+					pgnum = _tlb[vpgnum];
+				}
+
+				pLineAddr = procMask | (pgnum << 6) | (vLineAddr & 0x3f);
 			} else {
                 pLineAddr = procMask | vLineAddr;
                 futex_lock(&filterLock);

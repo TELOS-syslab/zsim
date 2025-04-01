@@ -39,7 +39,7 @@ PagePlacementPolicy::initialize(Config & config)
 	srand48_r(rand(), &_buffer);
 	clearStats();
 
-	g_string scheme = config.get<const char *>("sys.mem.mcdram.placementPolicy");
+	g_string scheme = config.get<const char *>("sys.mem.mcdram.placementPolicy", "LRU");
 	_lru_bits = (uint32_t **) gm_malloc(sizeof(uint32_t *) * _cache_scheme->getNumSets());
 	for (uint64_t i = 0; i < _cache_scheme->getNumSets(); i++) {
 		_lru_bits[i] = (uint32_t *) gm_malloc(sizeof(uint32_t) * _cache_scheme->getNumWays()); 

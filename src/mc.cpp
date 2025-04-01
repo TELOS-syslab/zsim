@@ -198,9 +198,77 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
 
     _num_steps = 0;
     uint64_t cache_size = (uint64_t)config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024 * 1024;
+    uint64_t ext_size = (uint64_t)config.get<uint32_t>("sys.mem.ext_dram.size", 0) * 1024 * 1024;
+    if (cache_size == 0) {
+        cache_size = 1;
+    }
+    _cache_bits = log2(cache_size);
+    if (ext_size == 0) {
+        ext_size = 0xFFFFFFFFFFFFFFFF;
+    }
+    _ext_bits = log2(ext_size);
     _step_length = cache_size / 64 / 10;
     info("cache_size: %lu, step_length: %lu", cache_size, _step_length);
     _num_requests = 0;
+
+    
+    uint32_t _page_size = config.get<uint32_t>("sys.mem.page_size", 4096); // 4096, 2097152
+    _page_bits = log2(_page_size);
+    if (_page_bits < 6) {
+        panic("Page size %d is too small, must be at least 64 bytes", _page_size);
+    } else if (_page_bits > 12) {
+        panic("Page size %d is too large, must be at most 4096 bytes", _page_size);
+    }
+
+    _page_map_scheme = config.get<const char*>("sys.mem.pagemap_scheme", "Identical"); // Identical, Random, Johnny
+    if (_page_map_scheme == "Johnny") {
+        _johnny_ptr = 0;
+    } else if (_page_map_scheme == "Random") {
+        srand48_r((uint64_t)this, &_buffer);
+    } else if (_page_map_scheme == "Identical") { 
+        // Do nothing
+    } else {
+        panic("Invalid page mapping scheme %s", _page_map_scheme.c_str());
+    }
+
+    info("MemoryController %s initialized with page size %d, page mapping scheme %s", _name.c_str(), _page_size, _page_map_scheme.c_str());
+    info("MemoryController %s initialized with cache size %lu, ext size %lu", _name.c_str(), cache_size, ext_size);
+
+}
+
+Address MemoryController::mapPage(Address vLineAddr) {
+    Address pLineAddr;
+    if (_page_map_scheme == "Identical") {
+        pLineAddr = vLineAddr & ((1UL << (_ext_bits - 6)) - 1);
+        return pLineAddr;
+    }
+
+    Address vpgnum = vLineAddr >> (_page_bits - 6); 
+    uint64_t pgnum;
+    if (_tlb.find(vpgnum) == _tlb.end()) {
+        if (_page_map_scheme == "Johnny") {
+            pgnum = _johnny_ptr;
+            _johnny_ptr++;
+            _johnny_ptr &= ((1UL << (_ext_bits - 6)) - 1);
+            info("Johnny page mapping: vLineAddr = %lx, vpgnum = %lx, _johnny_ptr = %lx", vLineAddr, vpgnum, _johnny_ptr);
+        } else if (_page_map_scheme == "Random") {
+            do {
+                int64_t rand;
+                lrand48_r(&_buffer, &rand);
+                // pgnum = rand & 0x000fffffffffffff;
+                // info("Random page mapping: pgnum = %lx => %lx", rand, rand & ((1UL << (_ext_bits - 6)) - 1));
+                // N.B. TAKE CARE OF '<<'
+                pgnum = rand & ((1UL << (_ext_bits - 6)) - 1);   
+            } while (_exist_pgnum.find(pgnum) != _exist_pgnum.end());
+        } else {
+            panic("Invalid page mapping scheme %s", _page_map_scheme.c_str());
+        }
+        _tlb[vpgnum] = pgnum;
+        _exist_pgnum.insert(pgnum);
+    } else 
+        pgnum = _tlb[vpgnum];	
+    pLineAddr = (pgnum << (_page_bits - 6)) | vLineAddr & ((1UL << (_page_bits - 6)) - 1);
+    return pLineAddr;
 }
 
 uint64_t MemoryController::access(MemReq& req) {
@@ -229,8 +297,13 @@ uint64_t MemoryController::access(MemReq& req) {
     }
 
     _num_requests++;
+
     // Delegate access to CacheScheme
+    Address vLineAddr = req.lineAddr;
+    Address pLineAddr = mapPage(vLineAddr);
+    req.lineAddr = pLineAddr;
     uint64_t result = _cache_scheme->access(req);
+    req.lineAddr = vLineAddr;
 
     // Handle bandwidth balance if needed
     if (_bw_balance && _num_requests % _step_length == 0) {
