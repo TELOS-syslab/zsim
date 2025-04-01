@@ -192,285 +192,116 @@ def calculate_average(values: List[Union[int, float]], start_idx: int = 0, end_i
 
 
 def calculate_cache_rate_trend(hits: List[Union[int, float, None]],
-                               misses: List[Union[int, float, None]],
-                               window_size: int = 1,
-                               rate_type: str = 'miss') -> List[float]:
+                             misses: List[Union[int, float, None]],
+                             window_size: int = 1,
+                             rate_type: str = 'miss') -> List[float]:
     """
-    Calculate the cache miss or hit rate trend over periods.
-    
-    Args:
-        hits: List of cache hit values for each period
-        misses: List of cache miss values for each period
-        window_size: Number of periods to average (default 1)
-        rate_type: 'miss' to calculate miss rate, 'hit' to calculate hit rate
-    
-    Returns:
-        List of miss rates or hit rates for each period (NaN if not calculable)
+    Calculate the cache miss or hit rate trend over periods, handling accumulated stats.
     """
     if len(hits) != len(misses):
         raise ValueError("Hit and miss lists must have the same length")
 
-    # Use NumPy for efficiency if available
-    if 'np' in globals():
-        # Convert to numpy arrays, replacing None with NaN
-        np_hits = np.array([float(h) if h is not None else np.nan for h in hits])
-        np_misses = np.array([float(m) if m is not None else np.nan for m in misses])
-        
-        # Initialize result array
-        rates = np.full(len(hits), np.nan)
-        
-        # Calculate rates for each position
-        for i in range(len(hits)):
-            if i >= window_size - 1:
-                window_hits = np_hits[max(0, i - window_size + 1):i+1]
-                window_misses = np_misses[max(0, i - window_size + 1):i+1]
-                
-                # Sum non-NaN values
-                total_hits = np.nansum(window_hits)
-                total_misses = np.nansum(window_misses)
-                total = total_hits + total_misses
-                
-                if total > 0:
-                    if rate_type.lower() == 'miss':
-                        rates[i] = total_misses / total
-                    else:  # hit rate
-                        rates[i] = total_hits / total
-        
-        return rates.tolist()
-    else:
-        # Fallback to Python implementation
-        rates = []
-        
-        # Ensure window_size is at least 1
-        window_size = max(1, window_size)
-        
-        for i in range(len(hits)):
-            if i < window_size - 1:
-                # Not enough periods for a full window
-                rates.append(float('nan'))
-                continue
-                
-            # Collect window data
-            window_hits = [hits[j] for j in range(i - window_size + 1, i + 1)
-                        if hits[j] is not None and isinstance(hits[j], (int, float))]
-            window_misses = [misses[j] for j in range(i - window_size + 1, i + 1)
-                            if misses[j] is not None and isinstance(misses[j], (int, float))]
-                
-            # Sum up valid values in the window
-            total_hits = sum(window_hits) if window_hits else 0
-            total_misses = sum(window_misses) if window_misses else 0
-            total = total_hits + total_misses
-                
-            if total == 0:
-                # No data or division by zero
-                rates.append(float('nan'))
-            else:
-                # Calculate the appropriate rate
+    # Convert to numpy arrays
+    hits_array = np.array([float(h) if h is not None else np.nan for h in hits])
+    misses_array = np.array([float(m) if m is not None else np.nan for m in misses])
+    
+    # Calculate differences between consecutive periods
+    hits_diff = np.diff(hits_array, prepend=0)
+    misses_diff = np.diff(misses_array, prepend=0)
+    
+    # Initialize result array
+    rates = np.full(len(hits), np.nan)
+    
+    # Calculate rates for each window
+    for i in range(len(hits)):
+        if i >= window_size - 1:
+            window_hits = np.sum(hits_diff[max(0, i - window_size + 1):i+1])
+            window_misses = np.sum(misses_diff[max(0, i - window_size + 1):i+1])
+            total = window_hits + window_misses
+            
+            if total > 0:
                 if rate_type.lower() == 'miss':
-                    rates.append(total_misses / total)
+                    rates[i] = window_misses / total
                 else:  # hit rate
-                    rates.append(total_hits / total)
-                    
-        return rates
+                    rates[i] = window_hits / total
+    
+    return rates.tolist()
 
 
 def calculate_ipc(file_path: str, base_path: str, window_size: int = 1):
-    """
-    Calculate Instructions Per Cycle (IPC) for each core and overall system.
-    
-    Args:
-        file_path: Path to the zsim output file
-        base_path: Base path prefix (e.g., "root.skylake") 
-        window_size: Size of window for moving average smoothing
-        
-    Returns:
-        Tuple of (per_core_ipc_dict, overall_ipc_list)
-    """
+    """Calculate Instructions Per Cycle (IPC) for each core and overall system."""
     start_time = time.time()
-    # Parse file only once
-    periods = parse_zsim_output(file_path)
     
-    # First identify all cores and create path queries
-    max_core = 15  # Assume up to 16 cores (0-15)
-    all_paths = []
-    core_paths = {}
+    # Parse file and find core paths
+    data = parse_zsim_output(file_path)
+    core_paths = find_core_paths(data)
     
-    for core_id in range(max_core + 1):
-        core_name = f"{base_path.split('.')[-1]}-{core_id}"
-        core_path = f"{base_path}.{core_name}"
-        
-        # Add paths for cycles, cCycles, and instrs
-        cycles_path = f"{core_path}.cycles"
-        cCycles_path = f"{core_path}.cCycles"
-        instrs_path = f"{core_path}.instrs"
-        
-        all_paths.extend([cycles_path, cCycles_path, instrs_path])
-        core_paths[core_id] = {
-            'cycles': cycles_path,
-            'cCycles': cCycles_path,
-            'instrs': instrs_path
-        }
+    if not core_paths:
+        print("No core paths found")
+        return {}, [], []
     
-    # Get all values in a single pass
-    print("Extracting core statistics...")
-    all_values = get_multiple_values(periods, all_paths)
+    print(f"Found {len(core_paths)} cores:")
+    for path in core_paths:
+        print(f"  {path}")
     
-    # Now organize data by core
-    cores_data = {}
-    for core_id, paths in core_paths.items():
-        cores_data[core_id] = {
-            'cycles': all_values[paths['cycles']],
-            'cCycles': all_values[paths['cCycles']],
-            'instrs': all_values[paths['instrs']]
-        }
+    # Get all core stats in one pass
+    paths_to_extract = []
+    for core_path in core_paths:
+        paths_to_extract.extend([
+            f"{core_path}.cycles",
+            f"{core_path}.cCycles",
+            f"{core_path}.instrs"
+        ])
     
-    print("Calculating IPC...")
-    # Calculate IPC using NumPy if available
-    if 'np' in globals():
-        # Prepare arrays for each core
-        ipc_data = {}
-        per_period_data = []
+    extracted_values = get_multiple_values(data, paths_to_extract)
+    
+    # Process each core's data
+    ipc_data = {}
+    total_instrs_by_period = np.zeros(len(data))
+    total_cycles_by_period = np.zeros(len(data))
+    
+    for core_path in core_paths:
+        cycles = np.array([float(c) if c is not None else np.nan for c in extracted_values[f"{core_path}.cycles"]])
+        cCycles = np.array([float(c) if c is not None else np.nan for c in extracted_values[f"{core_path}.cCycles"]])
+        instrs = np.array([float(i) if i is not None else np.nan for i in extracted_values[f"{core_path}.instrs"]])
         
-        # Get number of periods
-        num_periods = max(len(data['cycles']) for core_id, data in cores_data.items())
+        # Calculate differences between consecutive periods
+        cycles_diff = np.diff(cycles, prepend=0)
+        cCycles_diff = np.diff(cCycles, prepend=0)
+        instrs_diff = np.diff(instrs, prepend=0)
         
-        # Initialize arrays for overall IPC calculation
-        total_instrs_array = np.zeros(num_periods)
-        total_cycles_array = np.zeros(num_periods)
-        
-        # Process each core
-        for core_id, data in cores_data.items():
-            # Convert to NumPy arrays, replacing None with 0
-            cycles = np.array([float(c) if c is not None else 0.0 for c in data['cycles']])
-            cCycles = np.array([float(c) if c is not None else 0.0 for c in data['cCycles']])
-            instrs = np.array([float(i) if i is not None else 0.0 for i in data['instrs']])
-            
-            # Pad arrays if needed
-            if len(cycles) < num_periods:
-                cycles = np.pad(cycles, (0, num_periods - len(cycles)), mode='constant', constant_values=0)
-            if len(cCycles) < num_periods:
-                cCycles = np.pad(cCycles, (0, num_periods - len(cCycles)), mode='constant', constant_values=0)
-            if len(instrs) < num_periods:
-                instrs = np.pad(instrs, (0, num_periods - len(instrs)), mode='constant', constant_values=0)
-            
-            # Calculate IPC for this core
-            total_cycles = cycles + cCycles
-            # Avoid division by zero
-            ipc = np.divide(instrs, total_cycles, out=np.zeros_like(instrs), where=total_cycles!=0)
-            
-            # Store in per-core dict
-            ipc_data[core_id] = ipc.tolist()
-            
-            # Add to overall totals
-            total_instrs_array += instrs
-            total_cycles_array += total_cycles
-            
-            # Prepare period data for each core
-            for i in range(num_periods):
-                if i >= len(per_period_data):
-                    per_period_data.append({
-                        'period': i, 
-                        'cores': {}, 
-                        'overall_ipc': 0, 
-                        'total_instrs': 0, 
-                        'total_cycles': 0
-                    })
+        # Calculate IPC for each window
+        core_ipc = np.full(len(cycles), np.nan)
+        for i in range(len(cycles)):
+            if i >= window_size - 1:
+                window_cycles = np.sum(cycles_diff[max(0, i - window_size + 1):i+1])
+                window_cCycles = np.sum(cCycles_diff[max(0, i - window_size + 1):i+1])
+                window_instrs = np.sum(instrs_diff[max(0, i - window_size + 1):i+1])
                 
-                per_period_data[i]['cores'][core_id] = {
-                    'cycles': cycles[i],
-                    'cCycles': cCycles[i],
-                    'instrs': instrs[i],
-                    'ipc': ipc[i]
-                }
+                total_cycles = window_cycles + window_cCycles
+                if total_cycles > 0:
+                    core_ipc[i] = window_instrs / total_cycles
         
-        # Calculate overall IPC
-        overall_ipc = np.divide(total_instrs_array, total_cycles_array, 
-                              out=np.zeros_like(total_instrs_array), where=total_cycles_array!=0)
+        core_name = core_path.split('.')[-1]
+        ipc_data[core_name] = core_ipc.tolist()
         
-        # Update period data with overall metrics
-        for i in range(num_periods):
-            per_period_data[i]['overall_ipc'] = overall_ipc[i]
-            per_period_data[i]['total_instrs'] = total_instrs_array[i]
-            per_period_data[i]['total_cycles'] = total_cycles_array[i]
-        
-        # Apply window smoothing if needed
-        if window_size > 1:
-            # Smooth per-core IPC
-            smoothed_ipc_data = {}
-            for core_id, values in ipc_data.items():
-                smoothed_ipc_data[core_id] = smooth_values_numpy(values, window_size)
-            ipc_data = smoothed_ipc_data
-            
-            # Smooth overall IPC
-            overall_ipc = smooth_values_numpy(overall_ipc.tolist(), window_size)
-        else:
-            overall_ipc = overall_ipc.tolist()
-    else:
-        # Fallback to Python implementation
-        # Calculate IPC for each core and period
-        ipc_data = {}
-        per_period_data = []
-        
-        # Calculate total IPC across all periods
-        num_periods = max(len(data['cycles']) for core_id, data in cores_data.items())
-        
-        for period in range(num_periods):
-            total_instrs = 0
-            total_cycles = 0
-            period_dict = {'period': period, 'cores': {}}
-            
-            # Calculate IPC for each core in this period
-            for core_id, data in cores_data.items():
-                if period < len(data['cycles']) and period < len(data['cCycles']) and period < len(data['instrs']):
-                    cycles_val = data['cycles'][period] if data['cycles'][period] is not None else 0
-                    cCycles_val = data['cCycles'][period] if data['cCycles'][period] is not None else 0
-                    instrs_val = data['instrs'][period] if data['instrs'][period] is not None else 0
-                    
-                    total_instrs += instrs_val
-                    total_cycles += (cycles_val + cCycles_val)
-                    
-                    # Calculate IPC for this core
-                    core_ipc = instrs_val / (cycles_val + cCycles_val) if (cycles_val + cCycles_val) > 0 else 0
-                    
-                    # Store in per-core dict
-                    if core_id not in ipc_data:
-                        ipc_data[core_id] = []
-                    ipc_data[core_id].append(core_ipc)
-                    
-                    # Store in period dict
-                    period_dict['cores'][core_id] = {
-                        'cycles': cycles_val,
-                        'cCycles': cCycles_val,
-                        'instrs': instrs_val,
-                        'ipc': core_ipc
-                    }
-            
-            # Calculate overall IPC for this period
-            period_ipc = total_instrs / total_cycles if total_cycles > 0 else 0
-            period_dict['overall_ipc'] = period_ipc
-            period_dict['total_instrs'] = total_instrs
-            period_dict['total_cycles'] = total_cycles
-            
-            per_period_data.append(period_dict)
-        
-        # Extract overall IPC trend
-        overall_ipc = [period['overall_ipc'] for period in per_period_data]
-        
-        # Apply window smoothing if needed
-        if window_size > 1:
-            smoothed_ipc_data = {}
-            for core_id, values in ipc_data.items():
-                if values:  # Only process cores with data
-                    smoothed_ipc_data[core_id] = smooth_values(values, window_size)
-            ipc_data = smoothed_ipc_data
-            
-            # Smooth overall IPC
-            overall_ipc = smooth_values(overall_ipc, window_size)
+        # Add to totals for overall IPC
+        total_instrs_by_period += instrs_diff
+        total_cycles_by_period += (cycles_diff + cCycles_diff)
+    
+    # Calculate overall IPC for each window
+    overall_ipc = np.full(len(data), np.nan)
+    for i in range(len(data)):
+        if i >= window_size - 1:
+            window_instrs = np.sum(total_instrs_by_period[max(0, i - window_size + 1):i+1])
+            window_cycles = np.sum(total_cycles_by_period[max(0, i - window_size + 1):i+1])
+            if window_cycles > 0:
+                overall_ipc[i] = window_instrs / window_cycles
     
     end_time = time.time()
     print(f"IPC calculation completed in {end_time - start_time:.2f} seconds")
     
-    return ipc_data, overall_ipc, per_period_data
+    return ipc_data, overall_ipc.tolist(), []
 
 
 def smooth_values_numpy(values, window_size):
@@ -508,256 +339,417 @@ def smooth_values(values, window_size):
     return result
 
 
-def plot_cache_rate_trend(hit_rates: List[float], miss_rates: List[float], 
-                          file_path: str, cache_name: str, window_size: int):
-    """
-    Plot hit rate and miss rate trends using seaborn.
+def get_output_name(zsim_dir: str, cache_name: str = None, stat_type: str = None, window_size: int = 1) -> str:
+    """Generate output filename based on directory name pattern."""
+    # Extract date and category from directory name
+    dir_name = os.path.basename(zsim_dir)
+    match = re.match(r'(\d{8}-\d{6})\[(.*?)\]', dir_name)
+    if not match:
+        return f"unknown_{stat_type}_w{window_size}.png"
+        
+    date, category = match.groups()
     
-    Args:
-        hit_rates: List of hit rates
-        miss_rates: List of miss rates
-        file_path: Path to the output file for the plot
-        cache_name: Name of the cache (extracted from the path)
-        window_size: Window size used for smoothing
-    """
-    if not PLOTTING_AVAILABLE:
-        print("Plotting requires matplotlib and seaborn. Please install with:")
-        print("pip install matplotlib seaborn numpy pandas")
-        return
+    # Get the cache type from category (e.g., idealFullyCache from idealfully-cc-ddr)
+    cache_type = None
+    if '-' in category:
+        parts = category.split('-')
+        if len(parts) > 1:
+            if 'cache' in parts[0].lower():
+                cache_type = parts[0]
+            else:
+                cache_type = parts[0].capitalize() + 'Cache'
     
-    # Check if we have any valid data to plot
-    if 'np' in globals():
-        hit_array = np.array(hit_rates)
-        miss_array = np.array(miss_rates)
-        valid_hit_data = ~np.isnan(hit_array)
-        valid_miss_data = ~np.isnan(miss_array)
-        if not np.any(valid_hit_data) and not np.any(valid_miss_data):
-            print("No valid data to plot. All values are NaN or None.")
-            return
+    if not cache_type:
+        cache_type = 'UnknownCache'
+    
+    if stat_type.lower() in ['hit', 'miss']:
+        # For cache stats, use cache name and category
+        return f"[{category}]-hit-w{window_size}-{cache_name}_{date}.png"
+    elif stat_type.lower() == 'ipc':
+        # For IPC stats, use same pattern as cache stats
+        return f"[{category}]-ipc-w{window_size}-{cache_name}_{date}.png"
     else:
-        valid_hit_data = [x for x in hit_rates if not math.isnan(x)]
-        valid_miss_data = [x for x in miss_rates if not math.isnan(x)]
-        if not valid_hit_data and not valid_miss_data:
-            print("No valid data to plot. All values are NaN or None.")
-            return
+        return f"[{category}]-{stat_type}-w{window_size}-{cache_name}_{date}.png"
 
+
+def setup_plot_style():
+    """Setup publication-quality plot style."""
+    sns.set_style("whitegrid", {
+        'grid.linestyle': ':',
+        'grid.color': '#cccccc',
+        'grid.alpha': 0.5,
+        'axes.edgecolor': '#000000',
+        'axes.linewidth': 1.0,
+    })
+    
+    # Set figure-wide parameters
+    plt.rcParams.update({
+        'figure.figsize': (10, 6),
+        'figure.dpi': 300,
+        'savefig.dpi': 300,
+        'font.size': 12,
+        'axes.titlesize': 14,
+        'axes.labelsize': 12,
+        'xtick.labelsize': 10,
+        'ytick.labelsize': 10,
+        'legend.fontsize': 10,
+        'lines.linewidth': 1.5,
+        'lines.markersize': 4,
+        'lines.markeredgewidth': 1.0,
+    })
+
+
+def save_plot_data(data_dict: Dict, output_filename: str, plot_path: str):
+    """Save plot data alongside the plot image."""
+    data_path = os.path.join(plot_path, output_filename.replace('.png', '.npz'))
+    np.savez(data_path, **data_dict)
+
+
+def plot_cache_rate_trend(hit_rates: List[float], miss_rates: List[float], 
+                         zsim_dir: str, cache_name: str, window_size: int, plot_path: str):
+    """Plot hit rate and miss rate trends using publication-quality style."""
     try:
-        # Set up the plot style
-        sns.set_theme(style="whitegrid")
-        plt.figure(figsize=(12, 6))
-
-        # Import pandas here to ensure it's available
-        import pandas as pd
+        # Setup publication style
+        setup_plot_style()
         
-        # Create data for plotting with explicit DataFrame construction
-        plot_data = []
+        # Create figure with extra space for legend
+        fig = plt.figure(figsize=(12, 6))
+        ax = fig.add_subplot(111)
         
-        for i in range(len(hit_rates)):
-            if i < len(hit_rates) and not math.isnan(hit_rates[i]):
-                plot_data.append({
-                    'Period': i,
-                    'Rate': hit_rates[i],
-                    'Type': 'Hit Rate'
-                })
-                
-        for i in range(len(miss_rates)):
-            if i < len(miss_rates) and not math.isnan(miss_rates[i]):
-                plot_data.append({
-                    'Period': i,
-                    'Rate': miss_rates[i],
-                    'Type': 'Miss Rate'
-                })
+        # Create x-axis values
+        x = np.arange(len(hit_rates))
         
-        # Create DataFrame if we have data
-        if plot_data:
-            df = pd.DataFrame(plot_data)
-            
-            # Plot the data
-            sns.lineplot(data=df, x='Period', y='Rate', hue='Type', 
-                        marker='o', linewidth=2, markersize=8)
-            
-            # Set plot title and labels
-            plt.title(f"Cache Performance: {cache_name} (Window Size: {window_size})")
-            plt.xlabel("Period")
-            plt.ylabel("Rate")
-            plt.ylim(-0.05, 1.05)  # Rate is between 0 and 1
-            
-            # Add horizontal grid lines
-            plt.grid(axis='y', linestyle='--', alpha=0.7)
-            
-            # Get the output filename from the cache path
-            cache_short_name = cache_name.split('.')[-1]
-            output_filename = f"{cache_short_name}_trend_w{window_size}.png"
-            
-            # Save the plot
-            plt.tight_layout()
-            plt.savefig(output_filename)
-            print(f"Plot saved to: {output_filename}")
-            
-            # Show the plot
-            plt.show()
-        else:
-            print("No valid data points to plot after filtering NaN values.")
+        # Plot hit and miss rates
+        hit_line = ax.plot(x, hit_rates, 'o-', color='#1f77b4', label='Hit Rate', 
+                          markerfacecolor='white', markeredgewidth=0.8, markersize=4)
+        miss_line = ax.plot(x, miss_rates, 's-', color='#d62728', label='Miss Rate',
+                          markerfacecolor='white', markeredgewidth=0.8, markersize=4)
+        
+        # Customize the plot
+        ax.set_xlabel('Period')
+        ax.set_ylabel('Rate')
+        ax.set_title(f'Cache Performance: {cache_name}\n(Window Size: {window_size})')
+        
+        # Set y-axis limits with some padding
+        ax.set_ylim(-0.02, 1.02)
+        
+        # Add grid with dotted lines
+        ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
+        
+        # Move legend outside to the right
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
+                 frameon=True, edgecolor='black', fancybox=False)
+        
+        # Save both the plot and the data
+        output_filename = get_output_name(zsim_dir, cache_name=cache_name, 
+                                        stat_type='hit', window_size=window_size)
+        plt.savefig(os.path.join(plot_path, output_filename), bbox_inches='tight', pad_inches=0.1)
+        
+        # Save the actual data points
+        save_plot_data({
+            'hit_rates': hit_rates,
+            'miss_rates': miss_rates,
+            'x': x
+        }, output_filename, plot_path)
+        
+        print(f"Plot saved to: {output_filename}")
+        plt.show()
+        plt.close()
+        
     except Exception as e:
         print(f"Error creating plot: {e}")
-        print("This may be due to missing pandas or empty dataset.")
 
 
-def plot_ipc_trend(ipc_data, overall_ipc, base_path, window_size):
-    """
-    Plot IPC trends for cores and overall system.
-    
-    Args:
-        ipc_data: Dictionary mapping core_id to list of IPC values
-        overall_ipc: List of overall system IPC values
-        base_path: Base path string for title
-        window_size: Window size used for smoothing
-    """
-    if not PLOTTING_AVAILABLE:
-        print("Plotting requires matplotlib and seaborn. Please install with:")
-        print("pip install matplotlib seaborn numpy pandas")
-        return
-    
+def plot_ipc_trend(ipc_data, overall_ipc, zsim_dir, window_size, plot_path):
+    """Plot IPC trends with publication-quality style."""
     try:
-        # Set up the plot style
-        sns.set_theme(style="whitegrid")
-        plt.figure(figsize=(14, 8))
+        # Setup publication style
+        setup_plot_style()
         
-        # Import pandas here to ensure it's available
-        import pandas as pd
+        # Create figure with extra space for legend
+        fig = plt.figure(figsize=(12, 6))
+        ax = fig.add_subplot(111)
         
-        # Create data for plotting
-        plot_data = []
+        # Create color palette for cores
+        n_cores = len(ipc_data)
+        colors = plt.cm.tab20(np.linspace(0, 1, n_cores))
         
-        # Add data for each active core
-        for core_id, ipc_values in ipc_data.items():
-            if any(ipc_values):  # Only include cores with data
-                for period, ipc in enumerate(ipc_values):
-                    if ipc is not None:
-                        plot_data.append({
-                            'Period': period,
-                            'IPC': ipc,
-                            'Core': f'Core {core_id}'
-                        })
+        # Plot each core's IPC with markers
+        x = np.arange(len(next(iter(ipc_data.values()))))
+        for (core_name, ipc_values), color in zip(ipc_data.items(), colors):
+            ax.plot(x, ipc_values, '-', color=color, label=core_name, alpha=0.7,
+                   marker='.', markersize=3, markeredgewidth=0)
         
-        # Add overall IPC data
-        for period, ipc in enumerate(overall_ipc):
-            if ipc is not None:
-                plot_data.append({
-                    'Period': period,
-                    'IPC': ipc,
-                    'Core': 'Overall'
-                })
+        # Plot overall IPC with thick black line
+        ax.plot(x, overall_ipc, '-', color='black', label='Overall',
+                linewidth=2, zorder=n_cores+1)
         
-        # Create DataFrame if we have data
-        if plot_data:
-            df = pd.DataFrame(plot_data)
-            
-            # Plot the data
-            sns.lineplot(data=df[df['Core'] != 'Overall'], x='Period', y='IPC', 
-                        hue='Core', alpha=0.7, linewidth=1)
-            
-            # Highlight the overall IPC with a thicker black line
-            if 'Overall' in df['Core'].values:
-                sns.lineplot(data=df[df['Core'] == 'Overall'], x='Period', y='IPC',
-                            color='black', linewidth=3, label='Overall')
-            
-            # Set plot title and labels
-            plt.title(f"Instructions Per Cycle: {base_path.split('.')[-1]} (Window Size: {window_size})")
-            plt.xlabel("Period")
-            plt.ylabel("IPC")
-            
-            # Add grid
-            plt.grid(axis='y', linestyle='--', alpha=0.7)
-            
-            # Get the output filename
-            output_filename = f"ipc_trend_w{window_size}.png"
-            
-            # Save the plot
-            plt.tight_layout()
-            plt.savefig(output_filename)
-            print(f"Plot saved to: {output_filename}")
-            
-            # Show the plot
-            plt.show()
-        else:
-            print("No valid IPC data points to plot.")
+        # Extract category from directory name for the title
+        dir_name = os.path.basename(plot_path)
+        match = re.match(r'\d{8}-\d{6}\[(.*?)\]', dir_name)
+        category = match.group(1) if match else "unknown"
+        
+        # Customize the plot
+        ax.set_xlabel('Period')
+        ax.set_ylabel('Instructions Per Cycle (IPC)')
+        ax.set_title(f'Instructions Per Cycle: {category}\n(Window Size: {window_size})')
+        
+        # Add grid with dotted lines
+        ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
+        
+        # Move legend outside to the right
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
+                 frameon=True, edgecolor='black', fancybox=False,
+                 ncol=1 if n_cores <= 8 else 2)
+        
+        # Save both the plot and the data
+        output_filename = get_output_name(zsim_dir, cache_name="system", stat_type='ipc', window_size=window_size)
+        plt.savefig(os.path.join(plot_path, output_filename), bbox_inches='tight', pad_inches=0.1)
+        
+        # Save the actual data points
+        save_plot_data({
+            'ipc_data': ipc_data,
+            'overall_ipc': overall_ipc,
+            'x': x
+        }, output_filename, plot_path)
+        
+        print(f"Plot saved to: {output_filename}")
+        plt.show()
+        plt.close()
+        
     except Exception as e:
         print(f"Error creating IPC plot: {e}")
-        print("This may be due to missing pandas or empty dataset.")
+
+
+def find_cache_paths(data: List[Dict[str, Any]], base_path: str = "root.mem.mem-0") -> List[str]:
+    """Find all cache paths under the given base path."""
+    if not data:
+        return []
+    
+    # Try each period until we find valid data
+    for period in data:
+        if not period:  # Skip empty periods
+            continue
+            
+        # Navigate to mem-0
+        current = period
+        try:
+            for part in base_path.split('.'):
+                if part in current:
+                    current = current[part]
+                else:
+                    continue  # Try next period if path not found
+                    
+            # Find first child that has loadHit/loadMiss
+            cache_paths = []
+            for key in current.keys():
+                if isinstance(current[key], dict) and 'loadHit' in current[key]:
+                    cache_paths.append(f"{base_path}.{key}")
+            
+            if cache_paths:  # If we found any cache paths, return them
+                return cache_paths
+        except (KeyError, AttributeError):
+            continue  # Try next period if any error occurs
+    
+    return []  # Return empty list if no cache paths found in any period
+
+
+def find_core_paths(data: List[Dict[str, Any]]) -> List[str]:
+    """Find all core paths that have cycles, cCycles, and instrs stats."""
+    if not data:
+        return []
+    
+    core_paths = set()  # Use set to avoid duplicates
+    
+    def search_dict(d: Dict[str, Any], current_path: str):
+        if not isinstance(d, dict):
+            return
+            
+        for key, value in d.items():
+            if not isinstance(value, dict):
+                continue
+                
+            new_path = f"{current_path}.{key}" if current_path else key
+            
+            # Check if this is a core stats section
+            if ('cycles' in value and 'cCycles' in value and 'instrs' in value) or \
+               any(comment.strip() == '# Core stats' for comment in str(value).split('\n')):
+                core_paths.add(new_path)
+            else:
+                search_dict(value, new_path)
+    
+    # Try each period until we find all core paths
+    for period in data:
+        if not period:  # Skip empty periods
+            continue
+            
+        try:
+            search_dict(period, "")
+            if core_paths:  # If we found any paths, keep searching for more
+                continue
+        except (KeyError, AttributeError):
+            continue  # Try next period if any error occurs
+    
+    return sorted(list(core_paths))  # Return sorted list of unique paths
+
+
+def combine_plots(plots_dir: str):
+    """Combine all plots in a directory into comparison graphs."""
+    # Create plots directory if it doesn't exist
+    os.makedirs(plots_dir, exist_ok=True)
+    
+    # Get all data files
+    data_files = [f for f in os.listdir(plots_dir) if f.endswith('.npz')]
+    
+    # Group plots by type and window size
+    hit_plots = {}  # window_size -> {category -> (cache_name, date, data)}
+    ipc_plots = {}  # window_size -> {category -> (date, data)}
+    
+    for data_file in data_files:
+        # Parse filename: [category]-type-w{window}-{cache}_{date}.npz
+        match = re.match(r'\[(.*?)\]-(hit|ipc)-w(\d+)-(.+?)_(\d{8}-\d{6})\.npz', data_file)
+        if not match:
+            continue
+            
+        category, plot_type, window_size, cache_name, date = match.groups()
+        window_size = int(window_size)
+        
+        try:
+            # Load the data
+            data = np.load(os.path.join(plots_dir, data_file))
+            
+            if plot_type == 'hit':
+                if window_size not in hit_plots:
+                    hit_plots[window_size] = {}
+                hit_plots[window_size][category] = (cache_name, date, data)
+            else:  # ipc
+                if window_size not in ipc_plots:
+                    ipc_plots[window_size] = {}
+                ipc_plots[window_size][category] = (date, data)
+        except Exception as e:
+            print(f"Error loading {data_file}: {e}")
+            continue
+    
+    # Process each window size
+    for window_size in sorted(set(list(hit_plots.keys()) + list(ipc_plots.keys()))):
+        # Plot hit rates if we have any
+        if window_size in hit_plots and hit_plots[window_size]:
+            setup_plot_style()
+            fig = plt.figure(figsize=(12, 6))
+            ax = fig.add_subplot(111)
+            
+            # Plot each category
+            for category, (cache_name, date, data) in hit_plots[window_size].items():
+                hit_rates = data['hit_rates']
+                miss_rates = data['miss_rates']
+                x = data['x']
+                
+                ax.plot(x, hit_rates, '-', label=f"{category} (Hit)", alpha=0.7)
+                ax.plot(x, miss_rates, '--', label=f"{category} (Miss)", alpha=0.7)
+            
+            ax.set_xlabel('Period')
+            ax.set_ylabel('Rate')
+            ax.set_title(f'Cache Performance Comparison\n(Window Size: {window_size})')
+            ax.set_ylim(-0.02, 1.02)
+            ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
+            
+            # Move legend outside
+            box = ax.get_position()
+            ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
+            ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
+                     frameon=True, edgecolor='black', fancybox=False)
+            
+            plt.savefig(os.path.join(plots_dir, f'combined_hit_w{window_size}.png'),
+                       bbox_inches='tight', pad_inches=0.1)
+            plt.close()
+        
+        # Plot IPC if we have any
+        if window_size in ipc_plots and ipc_plots[window_size]:
+            setup_plot_style()
+            fig = plt.figure(figsize=(12, 6))
+            ax = fig.add_subplot(111)
+            
+            # Plot each category
+            colors = plt.cm.tab20(np.linspace(0, 1, len(ipc_plots[window_size])))
+            for (category, (date, data)), color in zip(ipc_plots[window_size].items(), colors):
+                ipc_values = data['overall_ipc']
+                x = data['x']
+                
+                ax.plot(x, ipc_values, '-', label=category, color=color, alpha=0.7)
+            
+            ax.set_xlabel('Period')
+            ax.set_ylabel('Instructions Per Cycle (IPC)')
+            ax.set_title(f'IPC Comparison\n(Window Size: {window_size})')
+            ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
+            
+            # Move legend outside
+            box = ax.get_position()
+            ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
+            ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
+                     frameon=True, edgecolor='black', fancybox=False)
+            
+            plt.savefig(os.path.join(plots_dir, f'combined_ipc_w{window_size}.png'),
+                       bbox_inches='tight', pad_inches=0.1)
+            plt.close()
 
 
 def main():
-    if len(sys.argv) < 3:
-        print(
-            "Usage: python parse_stats.py <zsim_output_file> <target_path> [window_size] [plot]")
+    if len(sys.argv) < 2:
+        print("Usage: python parse_stats.py <zsim_output_path> [stat_type] [window_size] [plot] [verbose]")
         sys.exit(1)
 
     start_time = time.time()
-    file_path = sys.argv[1]
-    target_path = sys.argv[2]
+    zsim_dir = sys.argv[1]
+    zsim_file = os.path.join(zsim_dir, "zsim-pout.out")
+    if not os.path.exists(zsim_file):
+        print(f"Error: zsim-pout.out not found in directory {zsim_dir}")
+        sys.exit(1)
+    plot_path = os.path.join(zsim_dir, "..", "plots")
+    stat_type = sys.argv[2] if len(sys.argv) > 2 else "hit"
     window_size = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3].isdigit() else 1
     plot_enabled = "plot" in sys.argv if len(sys.argv) > 3 else False
-
-    # Check if we should calculate IPC (if target is a processor like "root.skylake")
-    if target_path.endswith("skylake") or "cpu" in target_path.lower():
-        print(f"Calculating IPC for {target_path} with window size {window_size}")
+    verbose = "verbose" in sys.argv if len(sys.argv) > 4 else False
+    
+    # Check if we're calculating cache rates with just "hit" or "miss"
+    if stat_type.lower() in ["hit", "miss"]:
+        # Parse file once to find cache paths
+        data = parse_zsim_output(zsim_file)
+        cache_paths = find_cache_paths(data)
         
-        # Calculate IPC
-        ipc_data, overall_ipc, period_data = calculate_ipc(file_path, target_path, window_size)
+        if not cache_paths:
+            print("No cache paths found under root.mem.mem-0")
+            sys.exit(1)
+            
+        # Use the first cache found
+        base_path = cache_paths[0]
+        cache_name = base_path.split('.')[-1]
+        print(f"Found cache: {cache_name}")
         
-        # Print IPC for active cores
-        print("\nPer-Core IPC:")
-        for core_id, ipc_values in ipc_data.items():
-            if any(ipc_values):  # Only print active cores
-                valid_values = [v for v in ipc_values if v is not None]
-                if valid_values:
-                    avg_ipc = sum(valid_values) / len(valid_values)
-                    print(f"  Core {core_id}: {avg_ipc:.4f}")
-        
-        # Print overall IPC
-        valid_ipc = [ipc for ipc in overall_ipc if ipc is not None]
-        if valid_ipc:
-            avg_overall = sum(valid_ipc) / len(valid_ipc)
-            print(f"\nOverall System IPC: {avg_overall:.4f}")
-        
-        # Plot if requested
-        if plot_enabled:
-            plot_ipc_trend(ipc_data, overall_ipc, target_path, window_size)
-
-    # Check if we're calculating cache rates
-    elif "loadHit" in target_path or "loadMiss" in target_path:
-        # Remove the last component (hit or miss)
-        base_path = target_path.rsplit('.', 1)[0]
-
-        print(f"Analyzing cache performance for {base_path}")
-        
-        # Get both hit and miss stats in one pass
         hit_path = f"{base_path}.loadHit"
         miss_path = f"{base_path}.loadMiss"
         
-        # Parse the file once and get both values
-        all_data = parse_zsim_output(file_path)
+        print(f"Analyzing cache performance for {base_path}")
+        
+        # Get both hit and miss stats
         paths_to_extract = [hit_path, miss_path]
-        extracted_values = get_multiple_values(all_data, paths_to_extract)
+        extracted_values = get_multiple_values(data, paths_to_extract)
         
         hits = extracted_values[hit_path]
         misses = extracted_values[miss_path]
 
-        print(f"Values for {hit_path}: {hits}")
-        print(f"Values for {miss_path}: {misses}")
+        hit_rates = calculate_cache_rate_trend(hits, misses, window_size, 'hit')
+        miss_rates = calculate_cache_rate_trend(hits, misses, window_size, 'miss')
 
-        hit_rates = calculate_cache_rate_trend(
-            hits, misses, window_size, 'hit')
-        miss_rates = calculate_cache_rate_trend(
-            hits, misses, window_size, 'miss')
-
-        print(f"\nHit rate trend (window={window_size}): {hit_rates}")
-        print(f"Miss rate trend (window={window_size}): {miss_rates}")
+        if verbose:
+            print(f"\nHit rate trend (window={window_size}): {hit_rates}")
+            print(f"Miss rate trend (window={window_size}): {miss_rates}")
 
         # Calculate averages ignoring NaN values
         if 'np' in globals():
-            # NumPy implementation
             hit_array = np.array([float(x) if not math.isnan(x) else np.nan for x in hit_rates])
             miss_array = np.array([float(x) if not math.isnan(x) else np.nan for x in miss_rates])
             
@@ -766,7 +758,6 @@ def main():
             if not np.all(np.isnan(miss_array)):
                 print(f"Average miss rate: {np.nanmean(miss_array):.4f}")
         else:
-            # Python implementation
             valid_hit_rates = [r for r in hit_rates if not math.isnan(r)]
             valid_miss_rates = [r for r in miss_rates if not math.isnan(r)]
 
@@ -778,13 +769,44 @@ def main():
         # Plot the trend if requested
         if plot_enabled:
             try:
-                plot_cache_rate_trend(hit_rates, miss_rates, file_path, base_path, window_size)
+                plot_cache_rate_trend(hit_rates, miss_rates, zsim_dir, cache_name, window_size, plot_path)
             except Exception as e:
                 print(f"Unable to create plot: {e}")
+
+    # Check if we should calculate IPC
+    elif stat_type.lower() == "ipc":
+        # Calculate IPC using the updated function
+        ipc_data, overall_ipc, _ = calculate_ipc(zsim_file, "root", window_size)
+        
+        if not ipc_data:
+            print("No core paths found with cycles, cCycles, and instrs stats")
+            sys.exit(1)
+        
+        # Print IPC for active cores
+        print("\nPer-Core IPC:")
+        for core_name, ipc_values in ipc_data.items():
+            valid_values = [v for v in ipc_values if not np.isnan(v)]
+            if valid_values:
+                avg_ipc = np.mean(valid_values)
+                print(f"  {core_name}: {avg_ipc:.4f}")
+        
+        # Print overall IPC
+        valid_ipc = [ipc for ipc in overall_ipc if not np.isnan(ipc)]
+        if valid_ipc:
+            avg_overall = np.mean(valid_ipc)
+            print(f"\nOverall System IPC: {avg_overall:.4f}")
+        
+        # Plot if requested
+        if plot_enabled:
+            plot_ipc_trend(ipc_data, overall_ipc, zsim_dir, window_size, plot_path)
+
+    elif stat_type.lower() == "combine":
+        combine_plots(plot_path)
+
     else:
         # Regular path lookup
-        values = get_stats_series(file_path, target_path)
-        print(f"Values for {target_path}: {values}")
+        values = get_stats_series(zsim_file, stat_type)
+        print(f"Values for {stat_type}: {values}")
 
         avg = calculate_average(values)
         print(f"\nAverage: {avg}")

@@ -6,5 +6,22 @@ if [ -z "$ZSIMPATH" ]; then
     ZSIMPATH='.'
 fi
 
+cd $ZSIMPATH
 
-./utils/parse/parse_stats.py output/server03/20250401-003025[idealfully-cc]/zsim-pout.out root.mem.mem-0.idealFullyCache.loadHit 20 plot
+# Find all output directories matching the pattern
+output_dir="$ZSIMPATH/output/server03"
+for dir in "$output_dir"/*[\[\]]*; do
+    if [ -d "$dir" ]; then
+        echo "Processing directory: $dir"
+        # Process both hit rates and IPC
+        ./utils/parse/parse_stats.py "$dir" hit 100 plot
+        ./utils/parse/parse_stats.py "$dir" ipc 100 plot
+        # exit 0
+        echo "----------------------------------------"
+    fi
+done
+
+# ./utils/parse/parse_stats.py output/server03/20250331-023121[alloy-pr] hit 100 plot
+./utils/parse/parse_stats.py output/server03/20250331-023121[alloy-pr] combine
+
+cd -
