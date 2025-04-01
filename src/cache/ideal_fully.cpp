@@ -6,22 +6,31 @@
 
 #include "mc.h"
 
-// Update LRU state when a way is accessed
+// Update LRU state when a way is accessed - O(1) operation
 void IdealFullyScheme::updateLRU(uint32_t way) {
-    // Find the way in the LRU list
-    auto it = std::find(_lru_list.begin(), _lru_list.end(), way);
-    if (it != _lru_list.end()) {
-        // Remove the way from its current position
-        _lru_list.erase(it);
+    if (way == _mru_way) return; // Already MRU
+    
+    // Remove from current position
+    uint32_t prev = _lru_array[way].prev;
+    uint32_t next = _lru_array[way].next;
+    _lru_array[prev].next = next;
+    _lru_array[next].prev = prev;
+    
+    if (way == _lru_way) {
+        _lru_way = prev;
     }
-    // Insert the way at the front (most recently used position)
-    _lru_list.insert(_lru_list.begin(), way);
+    
+    // Insert at MRU position
+    _lru_array[way].next = _mru_way;
+    _lru_array[way].prev = _lru_array[_mru_way].prev;
+    _lru_array[_mru_way].prev = way;
+    _lru_array[_lru_array[way].prev].next = way;
+    _mru_way = way;
 }
 
-// Get the least recently used way
+// Get the least recently used way - O(1) operation
 uint32_t IdealFullyScheme::getLRUWay() {
-    // The LRU way is at the back of the list
-    return _lru_list.back();
+    return _lru_way;
 }
 
 uint64_t IdealFullyScheme::access(MemReq& req) {

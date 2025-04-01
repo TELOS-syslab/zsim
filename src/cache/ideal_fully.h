@@ -23,8 +23,14 @@ class IdealFullyScheme : public CacheScheme {
     uint64_t _num_line_entries;
     LineEntry* _line_entries;
     
-    // LRU tracking - stores way indices in order from MRU (0) to LRU (n-1)
-    std::vector<uint32_t> _lru_list;
+    // Array-based LRU tracking
+    struct LRUEntry {
+        uint32_t prev;  // Previous way in LRU order
+        uint32_t next;  // Next way in LRU order
+    };
+    LRUEntry* _lru_array;  // Array of LRU entries indexed by way
+    uint32_t _mru_way;     // Most recently used way
+    uint32_t _lru_way;     // Least recently used way
 
     static const uint32_t MAX_ADDR_BITS = 58;  // 64 - 6 bits for cache line offset
 
@@ -49,11 +55,14 @@ class IdealFullyScheme : public CacheScheme {
             _line_entries[i].way = _num_ways;
         }
         
-        // Initialize LRU list with all ways
-        _lru_list.reserve(_num_ways);
+        // Initialize LRU array
+        _lru_array = new LRUEntry[_num_ways];
         for (uint32_t i = 0; i < _num_ways; i++) {
-            _lru_list.push_back(i);
+            _lru_array[i].prev = (i > 0) ? i-1 : _num_ways-1;
+            _lru_array[i].next = (i < _num_ways-1) ? i+1 : 0;
         }
+        _mru_way = 0;
+        _lru_way = _num_ways-1;
     }
 
     uint64_t access(MemReq& req) override;
