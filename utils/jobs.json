@@ -1,0 +1,77 @@
+[
+  {
+    "name": "johnny-ddr-chamo-cc",
+    "command": "./utils/run.sh ddr cc chamo",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "johnny-ddr-chamo-pr",
+    "command": "./utils/run.sh ddr pr chamo",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "johnny-ddr-chamo-lu",
+    "command": "./utils/run.sh ddr lu chamo",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "johnny-ddr-alloy-cc",
+    "command": "./utils/run.sh ddr cc alloy",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "johnny-ddr-alloy-pr",
+    "command": "./utils/run.sh ddr pr alloy",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "johnny-ddr-alloy-lu",
+    "command": "./utils/run.sh ddr lu alloy",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "johnny-ddr-ndc-4096-0-cc",
+    "command": "./utils/run.sh ddr cc ndc-4096-0",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "johnny-ddr-ndc-4096-0-pr",
+    "command": "./utils/run.sh ddr pr ndc-4096-0",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "johnny-ddr-ndc-2048-0-lu",
+    "command": "./utils/run.sh ddr lu ndc-2048-0",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "johnny-ddr-idealfully-cc",
+    "command": "./utils/run.sh ddr cc idealfully",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "johnny-ddr-idealfully-pr",
+    "command": "./utils/run.sh ddr pr idealfully",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "johnny-ddr-idealfully-lu",
+    "command": "./utils/run.sh ddr lu idealfully",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "johnny-ddr-idealbalanced-cc",
+    "command": "./utils/run.sh ddr cc idealbalanced",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "johnny-ddr-idealbalanced-pr",
+    "command": "./utils/run.sh ddr pr idealbalanced",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "johnny-ddr-idealbalanced-lu",
+    "command": "./utils/run.sh ddr lu idealbalanced",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

@@ -1,0 +1,7 @@
+[
+  {
+    "name": "johnny-ddr-chamo-cc",
+    "command": "./utils/run.sh debug chamo-ddr",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]
