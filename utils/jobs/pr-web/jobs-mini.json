@@ -1,0 +1,48 @@
+[
+
+  {
+    "name": "pr-web-chamo_1G_16G",
+    "command": "./utils/run.sh benchmarks pr-web chamo_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "pr-web-chamo_2G_16G",
+    "command": "./utils/run.sh benchmarks pr-web chamo_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "pr-web-chamo_4G_16G",
+    "command": "./utils/run.sh benchmarks pr-web chamo_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "pr-web-ndc-0_1G_16G",
+    "command": "./utils/run.sh benchmarks pr-web ndc-0_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "pr-web-ndc-0_2G_16G",
+    "command": "./utils/run.sh benchmarks pr-web ndc-0_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "pr-web-ndc-0_4G_16G",
+    "command": "./utils/run.sh benchmarks pr-web ndc-0_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "pr-web-ndc-f_1G_16G",
+    "command": "./utils/run.sh benchmarks pr-web ndc-f_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "pr-web-ndc-f_2G_16G",
+    "command": "./utils/run.sh benchmarks pr-web ndc-f_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "pr-web-ndc-f_4G_16G",
+    "command": "./utils/run.sh benchmarks pr-web ndc-f_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

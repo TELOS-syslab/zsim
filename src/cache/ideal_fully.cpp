@@ -37,7 +37,8 @@ uint32_t IdealFullyScheme::getLRUWay() {
 uint64_t IdealFullyScheme::access(MemReq& req) {
     // Determine request type
     ReqType type = (req.type == GETS || req.type == GETX) ? LOAD : STORE;
-    Address address = req.lineAddr % (_ext_size / 64);
+    // Address address = req.lineAddr % (_ext_size / 64);
+    Address address = req.lineAddr;
 
     uint32_t mcdram_select = 0;
     Address mc_address = address;

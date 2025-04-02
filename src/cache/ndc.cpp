@@ -8,7 +8,8 @@
 uint64_t NDCScheme::access(MemReq& req) {
     // Determine request type
     ReqType type = (req.type == GETS || req.type == GETX) ? LOAD : STORE;
-    Address address = req.lineAddr % (_ext_size / 64);
+    // Address address = req.lineAddr % (_ext_size / 64);
+    Address address = req.lineAddr;
 
     uint32_t mcdram_select = 0;
     Address mc_address = phyAddr2cacheAddr(address);

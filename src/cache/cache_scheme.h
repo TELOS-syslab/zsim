@@ -47,8 +47,8 @@ class CacheScheme {
 
         _granularity = config.get<uint32_t>("sys.mem.mcdram.cache_granularity", 64);
         _num_ways = config.get<uint32_t>("sys.mem.mcdram.num_ways", 1);
-        _cache_size = (uint64_t)config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024 * 1024;
-        _ext_size = (uint64_t)config.get<uint32_t>("sys.mem.ext_dram.size", 0) * 1024 * 1024;
+        _cache_size = (uint64_t)config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024 * 1024; // Bytes
+        _ext_size = (uint64_t)config.get<uint32_t>("sys.mem.ext_dram.size", 0) * 1024 * 1024; // Bytes
         if (_ext_size == 0) {
             _ext_size = 0xFFFFFFFFFFFFFFFF;
         }

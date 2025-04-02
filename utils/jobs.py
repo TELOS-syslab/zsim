@@ -343,9 +343,11 @@ def get_sessions_by_group(target_group=None):
             result['Ungrouped'].append(session)
         else:
             # Filter by target group if specified
-            if target_group and group != target_group:
-                continue
-                
+            if target_group:
+                # Allow partial matches - if target_group is a substring of the full group name
+                if target_group not in group:
+                    continue
+                    
             if group not in result:
                 result[group] = []
             result[group].append(session)
@@ -488,22 +490,48 @@ def kill_sessions_by_group(group_name):
     """Kill all sessions in a specific group"""
     sessions_by_group = get_sessions_by_group(group_name)
     
-    if group_name not in sessions_by_group:
-        print(f"No sessions found for group '{group_name}'.")
+    # Find all matching groups
+    matching_groups = [g for g in sessions_by_group.keys() if group_name in g and g != 'Ungrouped']
+    
+    if not matching_groups:
+        print(f"No sessions found for group name containing '{group_name}'.")
         return 0
     
-    sessions = sessions_by_group[group_name]
-    print(f"Killing {len(sessions)} session(s) in group '{group_name}':")
+    if len(matching_groups) > 1:
+        print(f"Multiple matching groups found:")
+        for i, group in enumerate(matching_groups, 1):
+            session_count = len(sessions_by_group[group])
+            print(f"{i}. {group} ({session_count} sessions)")
+        choice = input("Enter the number of the group to kill (or 'a' for all): ")
+        if choice.lower() == 'a':
+            groups_to_kill = matching_groups
+        else:
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(matching_groups):
+                    groups_to_kill = [matching_groups[idx]]
+                else:
+                    print("Invalid choice. Operation cancelled.")
+                    return 0
+            except ValueError:
+                print("Invalid input. Operation cancelled.")
+                return 0
+    else:
+        groups_to_kill = matching_groups
     
     killed_count = 0
-    for session in sessions:
-        # Convert to tmux format (underscore) for the kill command
-        tmux_name = session.replace('.', '_')
-        print(f"  • Killing session: {session}")
-        subprocess.run(['tmux', 'kill-session', '-t', tmux_name])
-        killed_count += 1
+    for group in groups_to_kill:
+        sessions = sessions_by_group[group]
+        print(f"\nKilling {len(sessions)} session(s) in group '{group}':")
+        
+        for session in sessions:
+            # Convert to tmux format (underscore) for the kill command
+            tmux_name = session.replace('.', '_')
+            print(f"  • Killing session: {session}")
+            subprocess.run(['tmux', 'kill-session', '-t', tmux_name])
+            killed_count += 1
     
-    print(f"Killed {killed_count} session(s).")
+    print(f"\nKilled {killed_count} session(s) total.")
     return killed_count
 
 def main():

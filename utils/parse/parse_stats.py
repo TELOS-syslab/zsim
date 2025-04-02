@@ -194,9 +194,17 @@ def calculate_average(values: List[Union[int, float]], start_idx: int = 0, end_i
 def calculate_cache_rate_trend(hits: List[Union[int, float, None]],
                              misses: List[Union[int, float, None]],
                              window_size: int = 1,
-                             rate_type: str = 'miss') -> List[float]:
+                             rate_type: str = 'miss',
+                             step: int = 1) -> List[float]:
     """
     Calculate the cache miss or hit rate trend over periods, handling accumulated stats.
+    
+    Args:
+        hits: List of hit counts
+        misses: List of miss counts
+        window_size: Size of the sliding window
+        rate_type: Type of rate to calculate ('miss' or 'hit')
+        step: Step size for calculating rates (stride)
     """
     if len(hits) != len(misses):
         raise ValueError("Hit and miss lists must have the same length")
@@ -212,8 +220,8 @@ def calculate_cache_rate_trend(hits: List[Union[int, float, None]],
     # Initialize result array
     rates = np.full(len(hits), np.nan)
     
-    # Calculate rates for each window
-    for i in range(len(hits)):
+    # Calculate rates for each window with the given step size
+    for i in range(0, len(hits), step):
         if i >= window_size - 1:
             window_hits = np.sum(hits_diff[max(0, i - window_size + 1):i+1])
             window_misses = np.sum(misses_diff[max(0, i - window_size + 1):i+1])
@@ -232,9 +240,18 @@ def calculate_total_hit_rate_trend(load_hits: List[Union[int, float, None]],
                                   load_misses: List[Union[int, float, None]],
                                   store_hits: List[Union[int, float, None]],
                                   store_misses: List[Union[int, float, None]],
-                                  window_size: int = 1) -> List[float]:
+                                  window_size: int = 1,
+                                  step: int = 1) -> List[float]:
     """
-    Calculate the total cache hit rate trend (loads + stores) over periods, handling accumulated stats.
+    Calculate the total cache hit rate trend (loads + stores) over periods.
+    
+    Args:
+        load_hits: List of load hit counts
+        load_misses: List of load miss counts
+        store_hits: List of store hit counts
+        store_misses: List of store miss counts
+        window_size: Size of the sliding window
+        step: Step size for calculating rates (stride)
     """
     if len(load_hits) != len(load_misses) or len(load_hits) != len(store_hits) or len(load_hits) != len(store_misses):
         raise ValueError("Hit and miss lists must have the same length")
@@ -254,8 +271,8 @@ def calculate_total_hit_rate_trend(load_hits: List[Union[int, float, None]],
     # Initialize result array
     rates = np.full(len(load_hits), np.nan)
     
-    # Calculate rates for each window
-    for i in range(len(load_hits)):
+    # Calculate rates for each window with the given step size
+    for i in range(0, len(load_hits), step):
         if i >= window_size - 1:
             window_load_hits = np.sum(load_hits_diff[max(0, i - window_size + 1):i+1])
             window_load_misses = np.sum(load_misses_diff[max(0, i - window_size + 1):i+1])
@@ -382,13 +399,23 @@ def smooth_values(values, window_size):
     return result
 
 
-def get_output_name(zsim_dir: str, cache_name: str = None, stat_type: str = None, window_size: int = 1) -> str:
-    """Generate output filename based on directory name pattern."""
+def get_output_name(zsim_dir: str, cache_name: str = None, stat_type: str = None, 
+                   window_size: int = 1, step: int = 1) -> str:
+    """
+    Generate output filename based on directory name pattern.
+    
+    Args:
+        zsim_dir: Directory containing zsim output
+        cache_name: Name of the cache
+        stat_type: Type of statistic (hit, miss, ipc)
+        window_size: Size of the sliding window
+        step: Step size for data points
+    """
     # Extract date and category from directory name
     dir_name = os.path.basename(zsim_dir)
     match = re.match(r'(\d{8}-\d{6})\[(.*?)\]', dir_name)
     if not match:
-        return f"unknown_{stat_type}_w{window_size}.png"
+        return f"unknown_{stat_type}_w{window_size}_s{step}.png"
         
     date, category = match.groups()
     
@@ -407,12 +434,12 @@ def get_output_name(zsim_dir: str, cache_name: str = None, stat_type: str = None
     
     if stat_type.lower() in ['hit', 'miss']:
         # For cache stats, use cache name and category
-        return f"[{category}]-hit-w{window_size}-{cache_name}_{date}.png"
+        return f"[{category}]-hit-w{window_size}-s{step}-{cache_name}_{date}.png"
     elif stat_type.lower() == 'ipc':
         # For IPC stats, use same pattern as cache stats
-        return f"[{category}]-ipc-w{window_size}-{cache_name}_{date}.png"
+        return f"[{category}]-ipc-w{window_size}-s{step}-{cache_name}_{date}.png"
     else:
-        return f"[{category}]-{stat_type}-w{window_size}-{cache_name}_{date}.png"
+        return f"[{category}]-{stat_type}-w{window_size}-s{step}-{cache_name}_{date}.png"
 
 
 def setup_plot_style():
@@ -449,46 +476,46 @@ def save_plot_data(data_dict: Dict, output_filename: str, plot_path: str):
 
 
 def plot_cache_rate_trend(read_hit_rates: List[float], read_miss_rates: List[float], 
-                        total_hit_rates: List[float],
-                        zsim_dir: str, cache_name: str, window_size: int, plot_path: str):
+                         total_hit_rates: List[float],
+                         zsim_dir: str, cache_name: str, window_size: int, plot_path: str,
+                         step: int = 1):
     """Plot hit rate and miss rate trends using publication-quality style."""
     try:
-        # Setup publication style
         setup_plot_style()
         
-        # Create figure with extra space for legend
         fig = plt.figure(figsize=(12, 6))
         ax = fig.add_subplot(111)
         
-        # Create x-axis values
-        x = np.arange(len(read_hit_rates))
+        # Create x-axis values with step size
+        x = np.arange(0, len(read_hit_rates), step)
+        
+        # Filter data points according to step size
+        read_hit_rates_stepped = [read_hit_rates[i] for i in range(0, len(read_hit_rates), step)]
+        total_hit_rates_stepped = [total_hit_rates[i] for i in range(0, len(total_hit_rates), step)]
         
         # Plot hit and miss rates
-        read_hit_line = ax.plot(x, read_hit_rates, 'o-', color='#1f77b4', label='Read Hit Rate', 
-                             markerfacecolor='white', markeredgewidth=0.8, markersize=4)
-        total_hit_line = ax.plot(x, total_hit_rates, 's-', color='#2ca02c', label='Total Hit Rate',
-                              markerfacecolor='white', markeredgewidth=0.8, markersize=4)
+        read_hit_line = ax.plot(x, read_hit_rates_stepped, 'o-', color='#1f77b4', 
+                               label='Read Hit Rate', markerfacecolor='white', 
+                               markeredgewidth=0.8, markersize=4)
+        total_hit_line = ax.plot(x, total_hit_rates_stepped, 's-', color='#2ca02c', 
+                                label='Total Hit Rate', markerfacecolor='white', 
+                                markeredgewidth=0.8, markersize=4)
         
-        # Customize the plot
+        # Rest of the plotting code remains the same
         ax.set_xlabel('Period')
         ax.set_ylabel('Rate')
-        ax.set_title(f'Cache Performance: {cache_name}\n(Window Size: {window_size})')
-        
-        # Set y-axis limits with some padding
+        ax.set_title(f'Cache Performance: {cache_name}\n(Window Size: {window_size}, Step: {step})')
         ax.set_ylim(-0.02, 1.02)
-        
-        # Add grid with dotted lines
         ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
         
-        # Move legend outside to the right
         box = ax.get_position()
         ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
         ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
                 frameon=True, edgecolor='black', fancybox=False)
         
-        # Save both the plot and the data
         output_filename = get_output_name(zsim_dir, cache_name=cache_name, 
-                                        stat_type='hit', window_size=window_size)
+                                        stat_type='hit', window_size=window_size,
+                                        step=step)
         
         if not os.path.exists(plot_path):
             os.makedirs(plot_path)
@@ -496,9 +523,9 @@ def plot_cache_rate_trend(read_hit_rates: List[float], read_miss_rates: List[flo
         
         # Save the actual data points
         save_plot_data({
-            'read_hit_rates': read_hit_rates,
+            'read_hit_rates': read_hit_rates_stepped,
             'read_miss_rates': read_miss_rates,
-            'total_hit_rates': total_hit_rates,
+            'total_hit_rates': total_hit_rates_stepped,
             'x': x
         }, output_filename, plot_path)
         
@@ -557,7 +584,7 @@ def plot_ipc_trend(ipc_data, overall_ipc, zsim_dir, window_size, plot_path):
         # Save both the plot and the data
         if not os.path.exists(plot_path):
             os.makedirs(plot_path)
-        output_filename = get_output_name(zsim_dir, cache_name="system", stat_type='ipc', window_size=window_size)
+        output_filename = get_output_name(zsim_dir, cache_name="system", stat_type='ipc', window_size=window_size, step=1)
         plt.savefig(os.path.join(plot_path, output_filename), bbox_inches='tight', pad_inches=0.1)
         
         # Save the actual data points
@@ -660,13 +687,14 @@ def combine_plots(plots_dir: str):
     ipc_plots = {}  # window_size -> {category -> (date, data)}
     
     for data_file in data_files:
-        # Parse filename: [category]-type-w{window}-{cache}_{date}.npz
-        match = re.match(r'\[(.*?)\]-(hit|ipc)-w(\d+)-(.+?)_(\d{8}-\d{6})\.npz', data_file)
+        # Parse filename: [category]-type-w{window}-s{step}-{cache}_{date}.npz
+        match = re.match(r'\[(.*?)\]-(hit|ipc)-w(\d+)-s(\d+)-(.+?)_(\d{8}-\d{6})\.npz', data_file)
         if not match:
             continue
             
-        category, plot_type, window_size, cache_name, date = match.groups()
+        category, plot_type, window_size, step_size, cache_name, date = match.groups()
         window_size = int(window_size)
+        step_size = int(step_size)
         
         try:
             # Load the data
@@ -675,11 +703,11 @@ def combine_plots(plots_dir: str):
             if plot_type == 'hit':
                 if window_size not in hit_plots:
                     hit_plots[window_size] = {}
-                hit_plots[window_size][category] = (cache_name, date, data)
+                hit_plots[window_size][category] = (cache_name, date, data, step_size)
             else:  # ipc
                 if window_size not in ipc_plots:
                     ipc_plots[window_size] = {}
-                ipc_plots[window_size][category] = (date, data)
+                ipc_plots[window_size][category] = (date, data, step_size)
         except Exception as e:
             print(f"Error loading {data_file}: {e}")
             continue
@@ -693,18 +721,16 @@ def combine_plots(plots_dir: str):
         
         # Skip the first part and join the last 1 or 2 parts
         remaining_parts = parts[1:]  # Skip first part
-        # if len(remaining_parts) >= 2:
-        #     return f"{remaining_parts[-2]}_{remaining_parts[-1]}"
-        # else:
-        #     return remaining_parts[-1]
         return '_'.join(remaining_parts)
-    
-        
     
     # Process each window size
     for window_size in sorted(set(list(hit_plots.keys()) + list(ipc_plots.keys()))):
         # Plot hit rates if we have any
         if window_size in hit_plots and hit_plots[window_size]:
+            # Get step size from first plot in the group
+            first_category = next(iter(hit_plots[window_size]))
+            _, _, _, step_size = hit_plots[window_size][first_category]
+            
             # Read Hit Rate combined plot
             setup_plot_style()
             fig = plt.figure(figsize=(12, 6))
@@ -712,7 +738,7 @@ def combine_plots(plots_dir: str):
             
             # Plot each category's read hit rate
             colors = plt.cm.tab20(np.linspace(0, 1, len(hit_plots[window_size])))
-            for (category, (cache_name, date, data)), color in zip(hit_plots[window_size].items(), colors):
+            for (category, (cache_name, date, data, _)), color in zip(hit_plots[window_size].items(), colors):
                 hit_rates = data['read_hit_rates'] if 'read_hit_rates' in data else data['hit_rates']
                 x = data['x']
                 
@@ -720,7 +746,7 @@ def combine_plots(plots_dir: str):
             
             ax.set_xlabel('Period')
             ax.set_ylabel('Read Hit Rate')
-            ax.set_title(f'Cache Read Hit Rate Comparison\n(Window Size: {window_size})')
+            ax.set_title(f'Cache Read Hit Rate Comparison\n(Window Size: {window_size}, Step: {step_size})')
             ax.set_ylim(-0.02, 1.02)
             ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
             
@@ -730,7 +756,7 @@ def combine_plots(plots_dir: str):
             ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
                      frameon=True, edgecolor='black', fancybox=False)
             
-            plt.savefig(os.path.join(plots_dir, f'combined_rhit_w{window_size}.png'),
+            plt.savefig(os.path.join(plots_dir, f'combined_rhit_w{window_size}_s{step_size}.png'),
                        bbox_inches='tight', pad_inches=0.1)
             plt.close()
             
@@ -740,7 +766,7 @@ def combine_plots(plots_dir: str):
             ax = fig.add_subplot(111)
             
             # Plot each category's total hit rate
-            for (category, (cache_name, date, data)), color in zip(hit_plots[window_size].items(), colors):
+            for (category, (cache_name, date, data, _)), color in zip(hit_plots[window_size].items(), colors):
                 if 'total_hit_rates' in data:
                     total_hit_rates = data['total_hit_rates']
                     x = data['x']
@@ -749,7 +775,7 @@ def combine_plots(plots_dir: str):
             
             ax.set_xlabel('Period')
             ax.set_ylabel('Total Hit Rate')
-            ax.set_title(f'Cache Total Hit Rate Comparison\n(Window Size: {window_size})')
+            ax.set_title(f'Cache Total Hit Rate Comparison\n(Window Size: {window_size}, Step: {step_size})')
             ax.set_ylim(-0.02, 1.02)
             ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
             
@@ -759,7 +785,7 @@ def combine_plots(plots_dir: str):
             ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
                      frameon=True, edgecolor='black', fancybox=False)
             
-            plt.savefig(os.path.join(plots_dir, f'combined_thit_w{window_size}.png'),
+            plt.savefig(os.path.join(plots_dir, f'combined_thit_w{window_size}_s{step_size}.png'),
                        bbox_inches='tight', pad_inches=0.1)
             plt.close()
             
@@ -782,7 +808,7 @@ def combine_plots(plots_dir: str):
                 
                 benchmark_colors = plt.cm.tab10(np.linspace(0, 1, len(categories)))
                 for category, color in zip(categories, benchmark_colors):
-                    cache_name, date, data = hit_plots[window_size][category]
+                    cache_name, date, data, _ = hit_plots[window_size][category]
                     hit_rates = data['read_hit_rates'] if 'read_hit_rates' in data else data['hit_rates']
                     x = data['x']
                     
@@ -790,7 +816,7 @@ def combine_plots(plots_dir: str):
                 
                 ax.set_xlabel('Period')
                 ax.set_ylabel('Read Hit Rate')
-                ax.set_title(f'Cache Read Hit Rate Comparison for {benchmark}\n(Window Size: {window_size})')
+                ax.set_title(f'Cache Read Hit Rate Comparison for {benchmark}\n(Window Size: {window_size}, Step: {step_size})')
                 ax.set_ylim(-0.02, 1.02)
                 ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
                 
@@ -800,7 +826,7 @@ def combine_plots(plots_dir: str):
                 ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
                          frameon=True, edgecolor='black', fancybox=False)
                 
-                plt.savefig(os.path.join(plots_dir, f'benchmark_{benchmark}_rhit_w{window_size}.png'),
+                plt.savefig(os.path.join(plots_dir, f'benchmark_{benchmark}_rhit_w{window_size}_s{step_size}.png'),
                            bbox_inches='tight', pad_inches=0.1)
                 plt.close()
                 
@@ -811,7 +837,7 @@ def combine_plots(plots_dir: str):
                 
                 has_data = False
                 for category, color in zip(categories, benchmark_colors):
-                    cache_name, date, data = hit_plots[window_size][category]
+                    cache_name, date, data, _ = hit_plots[window_size][category]
                     if 'total_hit_rates' in data:
                         total_hit_rates = data['total_hit_rates']
                         x = data['x']
@@ -822,7 +848,7 @@ def combine_plots(plots_dir: str):
                 if has_data:
                     ax.set_xlabel('Period')
                     ax.set_ylabel('Total Hit Rate')
-                    ax.set_title(f'Cache Total Hit Rate Comparison for {benchmark}\n(Window Size: {window_size})')
+                    ax.set_title(f'Cache Total Hit Rate Comparison for {benchmark}\n(Window Size: {window_size}, Step: {step_size})')
                     ax.set_ylim(-0.02, 1.02)
                     ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
                     
@@ -832,19 +858,23 @@ def combine_plots(plots_dir: str):
                     ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
                              frameon=True, edgecolor='black', fancybox=False)
                     
-                    plt.savefig(os.path.join(plots_dir, f'benchmark_{benchmark}_thit_w{window_size}.png'),
+                    plt.savefig(os.path.join(plots_dir, f'benchmark_{benchmark}_thit_w{window_size}_s{step_size}.png'),
                                bbox_inches='tight', pad_inches=0.1)
                     plt.close()
         
         # Plot IPC if we have any
         if window_size in ipc_plots and ipc_plots[window_size]:
+            # Get step size from first plot in the group
+            first_category = next(iter(ipc_plots[window_size]))
+            _, _, step_size = ipc_plots[window_size][first_category]
+            
             setup_plot_style()
             fig = plt.figure(figsize=(12, 6))
             ax = fig.add_subplot(111)
             
             # Plot each category
             colors = plt.cm.tab20(np.linspace(0, 1, len(ipc_plots[window_size])))
-            for (category, (date, data)), color in zip(ipc_plots[window_size].items(), colors):
+            for (category, (date, data, _)), color in zip(ipc_plots[window_size].items(), colors):
                 ipc_values = data['overall_ipc']
                 x = data['x']
                 
@@ -852,7 +882,7 @@ def combine_plots(plots_dir: str):
             
             ax.set_xlabel('Period')
             ax.set_ylabel('Instructions Per Cycle (IPC)')
-            ax.set_title(f'IPC Comparison\n(Window Size: {window_size})')
+            ax.set_title(f'IPC Comparison\n(Window Size: {window_size}, Step: {step_size})')
             ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
             
             # Move legend outside
@@ -861,7 +891,7 @@ def combine_plots(plots_dir: str):
             ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
                      frameon=True, edgecolor='black', fancybox=False)
             
-            plt.savefig(os.path.join(plots_dir, f'combined_ipc_w{window_size}.png'),
+            plt.savefig(os.path.join(plots_dir, f'combined_ipc_w{window_size}_s{step_size}.png'),
                        bbox_inches='tight', pad_inches=0.1)
             plt.close()
             
@@ -884,7 +914,7 @@ def combine_plots(plots_dir: str):
                 
                 benchmark_colors = plt.cm.tab10(np.linspace(0, 1, len(categories)))
                 for category, color in zip(categories, benchmark_colors):
-                    date, data = ipc_plots[window_size][category]
+                    date, data, _ = ipc_plots[window_size][category]
                     ipc_values = data['overall_ipc']
                     x = data['x']
                     
@@ -892,7 +922,7 @@ def combine_plots(plots_dir: str):
                 
                 ax.set_xlabel('Period')
                 ax.set_ylabel('Instructions Per Cycle (IPC)')
-                ax.set_title(f'IPC Comparison for {benchmark}\n(Window Size: {window_size})')
+                ax.set_title(f'IPC Comparison for {benchmark}\n(Window Size: {window_size}, Step: {step_size})')
                 ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
                 
                 # Move legend outside
@@ -901,14 +931,14 @@ def combine_plots(plots_dir: str):
                 ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
                          frameon=True, edgecolor='black', fancybox=False)
                 
-                plt.savefig(os.path.join(plots_dir, f'benchmark_{benchmark}_ipc_w{window_size}.png'),
+                plt.savefig(os.path.join(plots_dir, f'benchmark_{benchmark}_ipc_w{window_size}_s{step_size}.png'),
                            bbox_inches='tight', pad_inches=0.1)
                 plt.close()
 
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python parse_stats.py <zsim_output_path> [stat_type] [window_size] [plot] [verbose]")
+        print("Usage: python parse_stats.py <zsim_output_path> [stat_type] [window_size] [step] [plot] [verbose]")
         sys.exit(1)
 
     start_time = time.time()
@@ -918,8 +948,9 @@ def main():
     plot_path = os.path.join(zsim_dir, "..", "plots")
     stat_type = sys.argv[2] if len(sys.argv) > 2 else "hit"
     window_size = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3].isdigit() else 1
-    plot_enabled = "plot" in sys.argv if len(sys.argv) > 3 else False
-    verbose = "verbose" in sys.argv if len(sys.argv) > 4 else False
+    step = int(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4].isdigit() else 1
+    plot_enabled = "plot" in sys.argv if len(sys.argv) > 4 else False
+    verbose = "verbose" in sys.argv if len(sys.argv) > 5 else False
     
     # Check if we're calculating cache rates with just "hit" or "miss"
     if stat_type.lower() in ["hit", "miss", "thit"]:
@@ -957,17 +988,15 @@ def main():
         store_hits = extracted_values[store_hit_path]
         store_misses = extracted_values[store_miss_path]
 
-        # Calculate read hit rate (rhit) - the original hit rate
-        read_hit_rates = calculate_cache_rate_trend(load_hits, load_misses, window_size, 'hit')
-        read_miss_rates = calculate_cache_rate_trend(load_hits, load_misses, window_size, 'miss')
-        
-        # Calculate total hit rate (thit)
-        total_hit_rates = calculate_total_hit_rate_trend(load_hits, load_misses, store_hits, store_misses, window_size)
+        # Calculate rates with step parameter
+        read_hit_rates = calculate_cache_rate_trend(load_hits, load_misses, window_size, 'hit', step)
+        read_miss_rates = calculate_cache_rate_trend(load_hits, load_misses, window_size, 'miss', step)
+        total_hit_rates = calculate_total_hit_rate_trend(load_hits, load_misses, store_hits, store_misses, window_size, step)
 
         if verbose:
-            print(f"\nRead hit rate trend (window={window_size}): {read_hit_rates}")
-            print(f"Read miss rate trend (window={window_size}): {read_miss_rates}")
-            print(f"Total hit rate trend (window={window_size}): {total_hit_rates}")
+            print(f"\nRead hit rate trend (window={window_size}, step={step}): {read_hit_rates}")
+            print(f"Read miss rate trend (window={window_size}, step={step}): {read_miss_rates}")
+            print(f"Total hit rate trend (window={window_size}, step={step}): {total_hit_rates}")
 
         # Calculate averages ignoring NaN values
         if 'np' in globals():
@@ -993,11 +1022,11 @@ def main():
             if valid_total_hit_rates:
                 print(f"Average total hit rate: {sum(valid_total_hit_rates)/len(valid_total_hit_rates):.4f}")
         
-        # Plot the trend if requested
+        # Plot with step parameter
         if plot_enabled:
             try:
                 plot_cache_rate_trend(read_hit_rates, read_miss_rates, total_hit_rates, 
-                                     zsim_dir, cache_name, window_size, plot_path)
+                                    zsim_dir, cache_name, window_size, plot_path, step)
             except Exception as e:
                 print(f"Unable to create plot: {e}")
 
