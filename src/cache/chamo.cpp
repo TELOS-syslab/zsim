@@ -313,7 +313,7 @@ uint64_t CHAMOScheme::access(MemReq& req) {
     // Check for cache hit
     uint32_t hit_way = _num_ways;
     if (!(_cache[set_num].ways[hit_way].valid && _cache[set_num].ways[hit_way].tag == tag)) {
-        hit_way = _num_ways;
+        hit_way = 0;
     }
 
     uint64_t data_ready_cycle = 0;
