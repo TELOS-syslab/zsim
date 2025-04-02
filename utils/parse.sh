@@ -8,8 +8,7 @@ fi
 
 cd $ZSIMPATH
 
-output_dir="$ZSIMPATH/output/server03/12-cc-web-johnny"
-# output_dir="$ZSIMPATH/output/server03/4"
+output_dir="$ZSIMPATH/output/collect/14-bc-twitter"
 for dir in "$output_dir"/*[\[\]]*; do
     if [ -d "$dir" ]; then
         echo "Processing directory: $dir"
@@ -21,25 +20,24 @@ for dir in "$output_dir"/*[\[\]]*; do
     fi
 done
 
-# ./utils/parse/parse_stats.py output/server03/20250331-023121[alloy-pr] hit 100 plot
+# ./utils/parse/parse_stats.py output/collect/20250331-023121[alloy-pr] hit 100 plot
 ./utils/parse/parse_stats.py $output_dir combine
 
 
-output_dir="$ZSIMPATH/output/server03/13-cc-web-random"
-# output_dir="$ZSIMPATH/output/server03/4"
-for dir in "$output_dir"/*[\[\]]*; do
-    if [ -d "$dir" ]; then
-        echo "Processing directory: $dir"
-        # Process both hit rates and IPC
-        ./utils/parse/parse_stats.py "$dir" hit 100 100 plot
-        ./utils/parse/parse_stats.py "$dir" ipc 100 1 plot
-        # exit 0
-        echo "----------------------------------------"
-    fi
-done
+# output_dir="$ZSIMPATH/output/collect/13-cc-web-random"
+# for dir in "$output_dir"/*[\[\]]*; do
+#     if [ -d "$dir" ]; then
+#         echo "Processing directory: $dir"
+#         # Process both hit rates and IPC
+#         ./utils/parse/parse_stats.py "$dir" hit 100 100 plot
+#         ./utils/parse/parse_stats.py "$dir" ipc 100 1 plot
+#         # exit 0
+#         echo "----------------------------------------"
+#     fi
+# done
 
-# ./utils/parse/parse_stats.py output/server03/20250331-023121[alloy-pr] hit 100 plot
-./utils/parse/parse_stats.py $output_dir combine
+# # ./utils/parse/parse_stats.py output/collect/20250331-023121[alloy-pr] hit 100 plot
+# ./utils/parse/parse_stats.py $output_dir combine
 
 
 cd -
