@@ -40,13 +40,13 @@ if [ $benchmark != "" ]; then
         echo "No such test $category/$benchmark/test-$cache_scheme.cfg"
         exit 1
     fi
-    ./bin/zsim tests/$category/$benchmark/test-$cache_scheme.cfg output $cache_scheme-$benchmark-$category
+    ./bin/zsim tests/$category/$benchmark/test-$cache_scheme.cfg output $cache_scheme"_"$benchmark"_"$category
 else
     if [ ! -f "tests/$category/test-$cache_scheme.cfg" ]; then
         echo "No such test $category/test-$cache_scheme.cfg"
         exit 1
     fi
-    ./bin/zsim tests/$category/test-$cache_scheme.cfg output $cache_scheme-$category
+    ./bin/zsim tests/$category/test-$cache_scheme.cfg output $cache_scheme"_"$category
 fi
 
 cd -

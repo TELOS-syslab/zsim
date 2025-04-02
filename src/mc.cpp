@@ -236,7 +236,9 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
 
 }
 
-Address MemoryController::mapPage(Address vLineAddr) {
+Address MemoryController::mapPage(MemReq& req) {
+    Address vLineAddr = req.lineAddr;
+    ReqType type = (req.type == GETS || req.type == GETX) ? LOAD : STORE;
     Address pLineAddr;
     if (_page_map_scheme == "Identical") {
         pLineAddr = vLineAddr & ((1UL << (_ext_bits - 6)) - 1);
@@ -269,7 +271,9 @@ Address MemoryController::mapPage(Address vLineAddr) {
     } else 
         pgnum = _tlb[vpgnum];
     pLineAddr = (pgnum << (_page_bits - 6)) | vLineAddr & ((1UL << (_page_bits - 6)) - 1);
-    // info("Page mapping: vLineAddr = %lx, vpgnum = %lx, pgnum = %lx, pLineAddr = %lx", vLineAddr, vpgnum, pgnum, pLineAddr);	
+    if (type == LOAD) {
+        // info("rwttpe = %d, vLineAddr = %lx, vpgnum = %lx, pgnum = %lx, pLineAddr = %lx", req.type , vLineAddr, vpgnum, pgnum, pLineAddr);
+    }
     return pLineAddr;
 }
 
@@ -302,7 +306,7 @@ uint64_t MemoryController::access(MemReq& req) {
 
     // Delegate access to CacheScheme
     Address vLineAddr = req.lineAddr;
-    Address pLineAddr = mapPage(vLineAddr);
+    Address pLineAddr = mapPage(req);
     req.lineAddr = pLineAddr;
     uint64_t result = _cache_scheme->access(req);
     req.lineAddr = vLineAddr;

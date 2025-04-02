@@ -228,6 +228,49 @@ def calculate_cache_rate_trend(hits: List[Union[int, float, None]],
     return rates.tolist()
 
 
+def calculate_total_hit_rate_trend(load_hits: List[Union[int, float, None]],
+                                  load_misses: List[Union[int, float, None]],
+                                  store_hits: List[Union[int, float, None]],
+                                  store_misses: List[Union[int, float, None]],
+                                  window_size: int = 1) -> List[float]:
+    """
+    Calculate the total cache hit rate trend (loads + stores) over periods, handling accumulated stats.
+    """
+    if len(load_hits) != len(load_misses) or len(load_hits) != len(store_hits) or len(load_hits) != len(store_misses):
+        raise ValueError("Hit and miss lists must have the same length")
+
+    # Convert to numpy arrays
+    load_hits_array = np.array([float(h) if h is not None else np.nan for h in load_hits])
+    load_misses_array = np.array([float(m) if m is not None else np.nan for m in load_misses])
+    store_hits_array = np.array([float(h) if h is not None else np.nan for h in store_hits])
+    store_misses_array = np.array([float(m) if m is not None else np.nan for m in store_misses])
+    
+    # Calculate differences between consecutive periods
+    load_hits_diff = np.diff(load_hits_array, prepend=0)
+    load_misses_diff = np.diff(load_misses_array, prepend=0)
+    store_hits_diff = np.diff(store_hits_array, prepend=0)
+    store_misses_diff = np.diff(store_misses_array, prepend=0)
+    
+    # Initialize result array
+    rates = np.full(len(load_hits), np.nan)
+    
+    # Calculate rates for each window
+    for i in range(len(load_hits)):
+        if i >= window_size - 1:
+            window_load_hits = np.sum(load_hits_diff[max(0, i - window_size + 1):i+1])
+            window_load_misses = np.sum(load_misses_diff[max(0, i - window_size + 1):i+1])
+            window_store_hits = np.sum(store_hits_diff[max(0, i - window_size + 1):i+1])
+            window_store_misses = np.sum(store_misses_diff[max(0, i - window_size + 1):i+1])
+            
+            total_hits = window_load_hits + window_store_hits
+            total_accesses = total_hits + window_load_misses + window_store_misses
+            
+            if total_accesses > 0:
+                rates[i] = total_hits / total_accesses
+    
+    return rates.tolist()
+
+
 def calculate_ipc(file_path: str, base_path: str, window_size: int = 1):
     """Calculate Instructions Per Cycle (IPC) for each core and overall system."""
     start_time = time.time()
@@ -405,8 +448,9 @@ def save_plot_data(data_dict: Dict, output_filename: str, plot_path: str):
     np.savez(data_path, **data_dict)
 
 
-def plot_cache_rate_trend(hit_rates: List[float], miss_rates: List[float], 
-                         zsim_dir: str, cache_name: str, window_size: int, plot_path: str):
+def plot_cache_rate_trend(read_hit_rates: List[float], read_miss_rates: List[float], 
+                        total_hit_rates: List[float],
+                        zsim_dir: str, cache_name: str, window_size: int, plot_path: str):
     """Plot hit rate and miss rate trends using publication-quality style."""
     try:
         # Setup publication style
@@ -417,13 +461,13 @@ def plot_cache_rate_trend(hit_rates: List[float], miss_rates: List[float],
         ax = fig.add_subplot(111)
         
         # Create x-axis values
-        x = np.arange(len(hit_rates))
+        x = np.arange(len(read_hit_rates))
         
         # Plot hit and miss rates
-        hit_line = ax.plot(x, hit_rates, 'o-', color='#1f77b4', label='Hit Rate', 
-                          markerfacecolor='white', markeredgewidth=0.8, markersize=4)
-        # miss_line = ax.plot(x, miss_rates, 's-', color='#d62728', label='Miss Rate',
-        #                   markerfacecolor='white', markeredgewidth=0.8, markersize=4)
+        read_hit_line = ax.plot(x, read_hit_rates, 'o-', color='#1f77b4', label='Read Hit Rate', 
+                             markerfacecolor='white', markeredgewidth=0.8, markersize=4)
+        total_hit_line = ax.plot(x, total_hit_rates, 's-', color='#2ca02c', label='Total Hit Rate',
+                              markerfacecolor='white', markeredgewidth=0.8, markersize=4)
         
         # Customize the plot
         ax.set_xlabel('Period')
@@ -440,7 +484,7 @@ def plot_cache_rate_trend(hit_rates: List[float], miss_rates: List[float],
         box = ax.get_position()
         ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
         ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
-                 frameon=True, edgecolor='black', fancybox=False)
+                frameon=True, edgecolor='black', fancybox=False)
         
         # Save both the plot and the data
         output_filename = get_output_name(zsim_dir, cache_name=cache_name, 
@@ -452,8 +496,9 @@ def plot_cache_rate_trend(hit_rates: List[float], miss_rates: List[float],
         
         # Save the actual data points
         save_plot_data({
-            'hit_rates': hit_rates,
-            'miss_rates': miss_rates,
+            'read_hit_rates': read_hit_rates,
+            'read_miss_rates': read_miss_rates,
+            'total_hit_rates': total_hit_rates,
             'x': x
         }, output_filename, plot_path)
         
@@ -639,25 +684,43 @@ def combine_plots(plots_dir: str):
             print(f"Error loading {data_file}: {e}")
             continue
     
+    # Extract benchmark name from category
+    def get_benchmark(category):
+        # Split by underscore first
+        parts = category.split('_')
+        if len(parts) <= 1:
+            return category  # If there's no underscore, use the whole category
+        
+        # Skip the first part and join the last 1 or 2 parts
+        remaining_parts = parts[1:]  # Skip first part
+        # if len(remaining_parts) >= 2:
+        #     return f"{remaining_parts[-2]}_{remaining_parts[-1]}"
+        # else:
+        #     return remaining_parts[-1]
+        return '_'.join(remaining_parts)
+    
+        
+    
     # Process each window size
     for window_size in sorted(set(list(hit_plots.keys()) + list(ipc_plots.keys()))):
         # Plot hit rates if we have any
         if window_size in hit_plots and hit_plots[window_size]:
+            # Read Hit Rate combined plot
             setup_plot_style()
             fig = plt.figure(figsize=(12, 6))
             ax = fig.add_subplot(111)
             
-            # Plot each category's hit rate only
+            # Plot each category's read hit rate
             colors = plt.cm.tab20(np.linspace(0, 1, len(hit_plots[window_size])))
             for (category, (cache_name, date, data)), color in zip(hit_plots[window_size].items(), colors):
-                hit_rates = data['hit_rates']
+                hit_rates = data['read_hit_rates'] if 'read_hit_rates' in data else data['hit_rates']
                 x = data['x']
                 
                 ax.plot(x, hit_rates, '-', label=category, color=color, alpha=0.7)
             
             ax.set_xlabel('Period')
-            ax.set_ylabel('Hit Rate')
-            ax.set_title(f'Cache Hit Rate Comparison\n(Window Size: {window_size})')
+            ax.set_ylabel('Read Hit Rate')
+            ax.set_title(f'Cache Read Hit Rate Comparison\n(Window Size: {window_size})')
             ax.set_ylim(-0.02, 1.02)
             ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
             
@@ -667,9 +730,111 @@ def combine_plots(plots_dir: str):
             ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
                      frameon=True, edgecolor='black', fancybox=False)
             
-            plt.savefig(os.path.join(plots_dir, f'combined_hit_w{window_size}.png'),
+            plt.savefig(os.path.join(plots_dir, f'combined_rhit_w{window_size}.png'),
                        bbox_inches='tight', pad_inches=0.1)
             plt.close()
+            
+            # Total Hit Rate combined plot
+            setup_plot_style()
+            fig = plt.figure(figsize=(12, 6))
+            ax = fig.add_subplot(111)
+            
+            # Plot each category's total hit rate
+            for (category, (cache_name, date, data)), color in zip(hit_plots[window_size].items(), colors):
+                if 'total_hit_rates' in data:
+                    total_hit_rates = data['total_hit_rates']
+                    x = data['x']
+                    
+                    ax.plot(x, total_hit_rates, '-', label=category, color=color, alpha=0.7)
+            
+            ax.set_xlabel('Period')
+            ax.set_ylabel('Total Hit Rate')
+            ax.set_title(f'Cache Total Hit Rate Comparison\n(Window Size: {window_size})')
+            ax.set_ylim(-0.02, 1.02)
+            ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
+            
+            # Move legend outside
+            box = ax.get_position()
+            ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
+            ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
+                     frameon=True, edgecolor='black', fancybox=False)
+            
+            plt.savefig(os.path.join(plots_dir, f'combined_thit_w{window_size}.png'),
+                       bbox_inches='tight', pad_inches=0.1)
+            plt.close()
+            
+            # Group by benchmark for part-combined graphs
+            benchmark_groups = {}
+            for category in hit_plots[window_size]:
+                benchmark = get_benchmark(category)
+                if benchmark not in benchmark_groups:
+                    benchmark_groups[benchmark] = []
+                benchmark_groups[benchmark].append(category)
+            
+            # Create part-combined plots for each benchmark - Read Hit Rate
+            for benchmark, categories in benchmark_groups.items():
+                if len(categories) <= 1:
+                    continue  # Skip benchmarks with only one category
+                
+                setup_plot_style()
+                fig = plt.figure(figsize=(12, 6))
+                ax = fig.add_subplot(111)
+                
+                benchmark_colors = plt.cm.tab10(np.linspace(0, 1, len(categories)))
+                for category, color in zip(categories, benchmark_colors):
+                    cache_name, date, data = hit_plots[window_size][category]
+                    hit_rates = data['read_hit_rates'] if 'read_hit_rates' in data else data['hit_rates']
+                    x = data['x']
+                    
+                    ax.plot(x, hit_rates, '-', label=category, color=color, alpha=0.7)
+                
+                ax.set_xlabel('Period')
+                ax.set_ylabel('Read Hit Rate')
+                ax.set_title(f'Cache Read Hit Rate Comparison for {benchmark}\n(Window Size: {window_size})')
+                ax.set_ylim(-0.02, 1.02)
+                ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
+                
+                # Move legend outside
+                box = ax.get_position()
+                ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
+                ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
+                         frameon=True, edgecolor='black', fancybox=False)
+                
+                plt.savefig(os.path.join(plots_dir, f'benchmark_{benchmark}_rhit_w{window_size}.png'),
+                           bbox_inches='tight', pad_inches=0.1)
+                plt.close()
+                
+                # Create part-combined plots for each benchmark - Total Hit Rate
+                setup_plot_style()
+                fig = plt.figure(figsize=(12, 6))
+                ax = fig.add_subplot(111)
+                
+                has_data = False
+                for category, color in zip(categories, benchmark_colors):
+                    cache_name, date, data = hit_plots[window_size][category]
+                    if 'total_hit_rates' in data:
+                        total_hit_rates = data['total_hit_rates']
+                        x = data['x']
+                        
+                        ax.plot(x, total_hit_rates, '-', label=category, color=color, alpha=0.7)
+                        has_data = True
+                
+                if has_data:
+                    ax.set_xlabel('Period')
+                    ax.set_ylabel('Total Hit Rate')
+                    ax.set_title(f'Cache Total Hit Rate Comparison for {benchmark}\n(Window Size: {window_size})')
+                    ax.set_ylim(-0.02, 1.02)
+                    ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
+                    
+                    # Move legend outside
+                    box = ax.get_position()
+                    ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
+                    ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
+                             frameon=True, edgecolor='black', fancybox=False)
+                    
+                    plt.savefig(os.path.join(plots_dir, f'benchmark_{benchmark}_thit_w{window_size}.png'),
+                               bbox_inches='tight', pad_inches=0.1)
+                    plt.close()
         
         # Plot IPC if we have any
         if window_size in ipc_plots and ipc_plots[window_size]:
@@ -699,6 +864,46 @@ def combine_plots(plots_dir: str):
             plt.savefig(os.path.join(plots_dir, f'combined_ipc_w{window_size}.png'),
                        bbox_inches='tight', pad_inches=0.1)
             plt.close()
+            
+            # Group by benchmark for part-combined graphs
+            benchmark_groups = {}
+            for category in ipc_plots[window_size]:
+                benchmark = get_benchmark(category)
+                if benchmark not in benchmark_groups:
+                    benchmark_groups[benchmark] = []
+                benchmark_groups[benchmark].append(category)
+            
+            # Create part-combined plot for each benchmark
+            for benchmark, categories in benchmark_groups.items():
+                if len(categories) <= 1:
+                    continue  # Skip benchmarks with only one category
+                
+                setup_plot_style()
+                fig = plt.figure(figsize=(12, 6))
+                ax = fig.add_subplot(111)
+                
+                benchmark_colors = plt.cm.tab10(np.linspace(0, 1, len(categories)))
+                for category, color in zip(categories, benchmark_colors):
+                    date, data = ipc_plots[window_size][category]
+                    ipc_values = data['overall_ipc']
+                    x = data['x']
+                    
+                    ax.plot(x, ipc_values, '-', label=category, color=color, alpha=0.7)
+                
+                ax.set_xlabel('Period')
+                ax.set_ylabel('Instructions Per Cycle (IPC)')
+                ax.set_title(f'IPC Comparison for {benchmark}\n(Window Size: {window_size})')
+                ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
+                
+                # Move legend outside
+                box = ax.get_position()
+                ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
+                ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
+                         frameon=True, edgecolor='black', fancybox=False)
+                
+                plt.savefig(os.path.join(plots_dir, f'benchmark_{benchmark}_ipc_w{window_size}.png'),
+                           bbox_inches='tight', pad_inches=0.1)
+                plt.close()
 
 
 def main():
@@ -717,7 +922,7 @@ def main():
     verbose = "verbose" in sys.argv if len(sys.argv) > 4 else False
     
     # Check if we're calculating cache rates with just "hit" or "miss"
-    if stat_type.lower() in ["hit", "miss"]:
+    if stat_type.lower() in ["hit", "miss", "thit"]:
         # Parse file once to find cache paths
         if not os.path.exists(zsim_file):
             print(f"Error: zsim-pout.out not found in directory {zsim_dir}")
@@ -735,47 +940,64 @@ def main():
         cache_name = base_path.split('.')[-1]
         print(f"Found cache: {cache_name}")
         
-        hit_path = f"{base_path}.loadHit"
-        miss_path = f"{base_path}.loadMiss"
+        # Get all relevant cache access stats
+        load_hit_path = f"{base_path}.loadHit"
+        load_miss_path = f"{base_path}.loadMiss"
+        store_hit_path = f"{base_path}.storeHit"
+        store_miss_path = f"{base_path}.storeMiss"
         
         print(f"Analyzing cache performance for {base_path}")
         
-        # Get both hit and miss stats
-        paths_to_extract = [hit_path, miss_path]
+        # Get both load and store hits/misses 
+        paths_to_extract = [load_hit_path, load_miss_path, store_hit_path, store_miss_path]
         extracted_values = get_multiple_values(data, paths_to_extract)
         
-        hits = extracted_values[hit_path]
-        misses = extracted_values[miss_path]
+        load_hits = extracted_values[load_hit_path]
+        load_misses = extracted_values[load_miss_path]
+        store_hits = extracted_values[store_hit_path]
+        store_misses = extracted_values[store_miss_path]
 
-        hit_rates = calculate_cache_rate_trend(hits, misses, window_size, 'hit')
-        miss_rates = calculate_cache_rate_trend(hits, misses, window_size, 'miss')
+        # Calculate read hit rate (rhit) - the original hit rate
+        read_hit_rates = calculate_cache_rate_trend(load_hits, load_misses, window_size, 'hit')
+        read_miss_rates = calculate_cache_rate_trend(load_hits, load_misses, window_size, 'miss')
+        
+        # Calculate total hit rate (thit)
+        total_hit_rates = calculate_total_hit_rate_trend(load_hits, load_misses, store_hits, store_misses, window_size)
 
         if verbose:
-            print(f"\nHit rate trend (window={window_size}): {hit_rates}")
-            print(f"Miss rate trend (window={window_size}): {miss_rates}")
+            print(f"\nRead hit rate trend (window={window_size}): {read_hit_rates}")
+            print(f"Read miss rate trend (window={window_size}): {read_miss_rates}")
+            print(f"Total hit rate trend (window={window_size}): {total_hit_rates}")
 
         # Calculate averages ignoring NaN values
         if 'np' in globals():
-            hit_array = np.array([float(x) if not math.isnan(x) else np.nan for x in hit_rates])
-            miss_array = np.array([float(x) if not math.isnan(x) else np.nan for x in miss_rates])
+            read_hit_array = np.array([float(x) if not math.isnan(x) else np.nan for x in read_hit_rates])
+            read_miss_array = np.array([float(x) if not math.isnan(x) else np.nan for x in read_miss_rates])
+            total_hit_array = np.array([float(x) if not math.isnan(x) else np.nan for x in total_hit_rates])
             
-            if not np.all(np.isnan(hit_array)):
-                print(f"Average hit rate: {np.nanmean(hit_array):.4f}")
-            if not np.all(np.isnan(miss_array)):
-                print(f"Average miss rate: {np.nanmean(miss_array):.4f}")
+            if not np.all(np.isnan(read_hit_array)):
+                print(f"Average read hit rate: {np.nanmean(read_hit_array):.4f}")
+            if not np.all(np.isnan(read_miss_array)):
+                print(f"Average read miss rate: {np.nanmean(read_miss_array):.4f}")
+            if not np.all(np.isnan(total_hit_array)):
+                print(f"Average total hit rate: {np.nanmean(total_hit_array):.4f}")
         else:
-            valid_hit_rates = [r for r in hit_rates if not math.isnan(r)]
-            valid_miss_rates = [r for r in miss_rates if not math.isnan(r)]
+            valid_read_hit_rates = [r for r in read_hit_rates if not math.isnan(r)]
+            valid_read_miss_rates = [r for r in read_miss_rates if not math.isnan(r)]
+            valid_total_hit_rates = [r for r in total_hit_rates if not math.isnan(r)]
 
-            if valid_hit_rates:
-                print(f"Average hit rate: {sum(valid_hit_rates)/len(valid_hit_rates):.4f}")
-            if valid_miss_rates:
-                print(f"Average miss rate: {sum(valid_miss_rates)/len(valid_miss_rates):.4f}")
+            if valid_read_hit_rates:
+                print(f"Average read hit rate: {sum(valid_read_hit_rates)/len(valid_read_hit_rates):.4f}")
+            if valid_read_miss_rates:
+                print(f"Average read miss rate: {sum(valid_read_miss_rates)/len(valid_read_miss_rates):.4f}")
+            if valid_total_hit_rates:
+                print(f"Average total hit rate: {sum(valid_total_hit_rates)/len(valid_total_hit_rates):.4f}")
         
         # Plot the trend if requested
         if plot_enabled:
             try:
-                plot_cache_rate_trend(hit_rates, miss_rates, zsim_dir, cache_name, window_size, plot_path)
+                plot_cache_rate_trend(read_hit_rates, read_miss_rates, total_hit_rates, 
+                                     zsim_dir, cache_name, window_size, plot_path)
             except Exception as e:
                 print(f"Unable to create plot: {e}")
 

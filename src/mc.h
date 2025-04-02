@@ -7,6 +7,8 @@
 #include "g_std/g_string.h"
 #include "g_std/g_unordered_map.h"
 #include "g_std/g_unordered_set.h"
+#include <unordered_map>
+#include <unordered_set>
 #include "memory_hierarchy.h"
 #include "stats.h"
 
@@ -31,8 +33,10 @@ class MemoryController : public MemObject {
     uint64_t _ds_index;  // Data structure index
     uint32_t _num_steps;
     uint64_t _step_length;
-    g_unordered_map <Address, Address> _tlb;
-    g_unordered_set <Address> _exist_pgnum;
+    // g_unordered_map <Address, Address> _tlb;
+    // g_unordered_set <Address> _exist_pgnum;
+    std::unordered_map<Address, Address> _tlb;
+    std::unordered_set<Address> _exist_pgnum;
     g_string _page_map_scheme;
     uint64_t _johnny_ptr;
     drand48_data _buffer;
@@ -57,7 +61,7 @@ class MemoryController : public MemObject {
 
    public:
     MemoryController(g_string& name, uint32_t freqMHz, uint32_t domain, Config& config, std::string suffix_str="");
-    Address mapPage(Address vAddr);
+    Address mapPage(MemReq& req);
     uint64_t access(MemReq& req) override;  // MemObject interface
     const char* getName() override { return _name.c_str(); }
     void initStats(AggregateStat* parentStat) override;

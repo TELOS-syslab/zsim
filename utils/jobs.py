@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Tmux Job Manager: Run a list of jobs in separate tmux sessions
+Tmux Job Manager: Run a list of jobs in separate tmux sessions with group management
 
 This script reads a jobs file and creates a separate tmux session for each job.
-Each job can have a custom name, command, and working directory.
-Now includes status monitoring and output capture features.
+Jobs are organized into groups, making it easy to list and kill related sessions.
+Includes job status monitoring and output capture features.
 """
 
 import os
@@ -15,13 +15,42 @@ import time
 import json
 import re
 import tempfile
-import psutil
 import datetime
 import shutil
+import random
+import string
+
+try:
+    import psutil
+except ImportError:
+    print("Error: psutil module not found. Install it with: pip install psutil")
+    print("Command: pip install psutil")
+    sys.exit(1)
 
 # Configuration
 OUTPUT_CAPTURE_DIR = os.path.expanduser("~/.tmux_manager/logs")
 OUTPUT_LINES = 10  # Number of lines to show in verbose output
+GROUP_PREFIX = "group"  # Prefix for session group names
+
+# Random words for generating readable group names
+ADJECTIVES = [
+    "amber", "bold", "calm", "dark", "eager", "fast", "glad", "happy", 
+    "idle", "jolly", "kind", "loud", "mild", "nice", "oval", "prime", 
+    "quick", "rich", "safe", "tall", "used", "vast", "warm", "young", "zesty"
+]
+
+NOUNS = [
+    "ant", "bear", "cat", "deer", "elk", "fox", "goat", "hawk", 
+    "ibis", "jay", "koala", "lion", "moose", "newt", "otter", "puma", 
+    "quail", "rat", "seal", "tiger", "urchin", "vole", "whale", "yak", "zebra"
+]
+
+def generate_group_name():
+    """Generate a random, readable group name"""
+    adj = random.choice(ADJECTIVES)
+    noun = random.choice(NOUNS)
+    date_str = datetime.datetime.now().strftime("%m%d")
+    return f"{GROUP_PREFIX}_{adj}_{noun}_{date_str}"
 
 def ensure_dir_exists(directory):
     """Ensure a directory exists, creating it if necessary"""
@@ -72,32 +101,74 @@ def format_duration(seconds):
 
 def check_session_exists(session_name):
     """Check if a tmux session already exists"""
-    result = subprocess.run(['tmux', 'has-session', '-t', session_name], 
+    # Try with both formats (dot and underscore)
+    tmux_name = session_name.replace('.', '_')
+    
+    result = subprocess.run(['tmux', 'has-session', '-t', tmux_name], 
                            stderr=subprocess.PIPE, stdout=subprocess.PIPE)
     return result.returncode == 0
+
+def get_all_sessions():
+    """Get a list of all tmux sessions"""
+    try:
+        result = subprocess.run(['tmux', 'list-sessions', '-F', '#{session_name}'],
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        if result.returncode != 0 or not result.stdout.strip():
+            return []
+        
+        return result.stdout.strip().split('\n')
+    except Exception:
+        return []
+
+def get_session_group(session_name):
+    """Extract the group name from a session name"""
+    if GROUP_PREFIX in session_name:
+        parts = session_name.split('_')
+        for i, part in enumerate(parts):
+            if part == GROUP_PREFIX:
+                # Return everything up to but not including the job name
+                # This will include the prefix, adjective, noun, and date
+                return '_'.join(parts[:i+4])  # Include prefix, adjective, noun, and date
+    return None
+
+def get_all_groups():
+    """Get all unique group names from existing sessions"""
+    sessions = get_all_sessions()
+    groups = set()
+    
+    for session in sessions:
+        group = get_session_group(session)
+        if group:
+            groups.add(group)
+    
+    return sorted(list(groups))
 
 def setup_output_capture(session_name):
     """Set up output capture for a tmux session"""
     ensure_dir_exists(OUTPUT_CAPTURE_DIR)
+    # Keep the same name format for log files as the tmux session name
     output_file = os.path.join(OUTPUT_CAPTURE_DIR, f"{session_name}.log")
     
     try:
-        # Configure tmux to pipe pane output to a file
         subprocess.run([
-            'tmux', 'pipe-pane', '-t', session_name, 
+            'tmux', 'pipe-pane', '-t', f"{session_name}:0.0", 
             f'cat >> {output_file}'
         ])
         return output_file
     except Exception as e:
-        print(f"Warning: Failed to set up output capture: {e}")
+        print(f"Warning: Failed to set up output capture for '{session_name}': {e}")
         return None
 
 def get_session_info(session_name):
     """Get detailed information about a running tmux session"""
     try:
-        # Get pane info
+        # For tmux commands, we need to use the underscore format
+        tmux_name = session_name.replace('.', '_')
+        
+        # Get pane info - specify the target properly
         result = subprocess.run(
-            ['tmux', 'list-panes', '-t', session_name, '-F', '#{pane_pid}'],
+            ['tmux', 'list-panes', '-t', tmux_name, '-F', '#{pane_pid}'],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
         
@@ -121,6 +192,9 @@ def get_session_info(session_name):
         output_file = os.path.join(OUTPUT_CAPTURE_DIR, f"{session_name}.log")
         has_output = os.path.exists(output_file)
         
+        # Extract group information
+        group = get_session_group(session_name)
+        
         return {
             'pid': pane_pid,
             'command': command,
@@ -130,10 +204,11 @@ def get_session_info(session_name):
             'cpu': process_info.get('cpu', 0),
             'memory_mb': process_info.get('memory_mb', 0),
             'start_time': process_info.get('start_time', 'Unknown'),
-            'runtime': process_info.get('runtime', 0)
+            'runtime': process_info.get('runtime', 0),
+            'group': group
         }
     except Exception as e:
-        print(f"Error getting session info: {e}")
+        print(f"Error getting session info for '{session_name}': {e}")
     
     return None
 
@@ -156,8 +231,14 @@ def get_session_output(output_file, lines=OUTPUT_LINES):
     except Exception as e:
         return f"Error reading output: {e}"
 
-def create_tmux_session(session_name, command, working_dir=None, force=False, capture_output=True):
-    """Create a new tmux session with the given name and command"""
+def create_tmux_session(group_name, job_name, command, working_dir=None, force=False, capture_output=True):
+    """Create a new tmux session with the given group and job name"""
+    # Replace any dots or spaces in job name with underscores
+    safe_job_name = job_name.replace('.', '_').replace(' ', '_')
+    
+    # Create session name using underscores consistently - remove the group name formatting from here
+    session_name = f"{group_name}_{safe_job_name}"
+    
     # First check if session already exists
     if check_session_exists(session_name):
         session_info = get_session_info(session_name)
@@ -248,62 +329,153 @@ def read_jobs_file(filename):
     
     return jobs
 
-def list_tmux_sessions(verbose=False, output_lines=OUTPUT_LINES):
+def get_sessions_by_group(target_group=None):
+    """Get all sessions organized by group"""
+    all_sessions = get_all_sessions()
+    result = {}
+    
+    for session in all_sessions:
+        group = get_session_group(session)
+        if group is None:
+            # Handle sessions without a group prefix
+            if 'Ungrouped' not in result:
+                result['Ungrouped'] = []
+            result['Ungrouped'].append(session)
+        else:
+            # Filter by target group if specified
+            if target_group and group != target_group:
+                continue
+                
+            if group not in result:
+                result[group] = []
+            result[group].append(session)
+    
+    return result
+
+def list_groups():
+    """List all job groups with session counts"""
+    groups = get_all_groups()
+    
+    if not groups:
+        print("No job groups found.")
+        return
+    
+    print(f"Found {len(groups)} job groups:")
+    
+    sessions_by_group = get_sessions_by_group()
+    
+    for group in groups:
+        session_count = len(sessions_by_group.get(group, []))
+        
+        # Count running sessions
+        running_count = 0
+        for session in sessions_by_group.get(group, []):
+            info = get_session_info(session)
+            if info and info['running']:
+                running_count += 1
+        
+        status = f"{running_count}/{session_count} running"
+        print(f"  • {group} ({status})")
+        
+    print("\nTo list sessions in a group: tmux_manager.py --list-group GROUP_NAME")
+
+def list_tmux_sessions(verbose=False, output_lines=OUTPUT_LINES, target_group=None):
     """List all current tmux sessions with optional detailed info"""
     try:
-        result = subprocess.run(['tmux', 'list-sessions', '-F', '#{session_name}'],
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        all_sessions = get_all_sessions()
         
-        if result.returncode != 0 or not result.stdout.strip():
+        if not all_sessions:
             print("No active tmux sessions found.")
             return []
+            
+        sessions_by_group = {}
         
-        sessions = result.stdout.strip().split('\n')
-        print(f"Found {len(sessions)} active tmux session(s):")
+        # Organize sessions by group
+        for session in all_sessions:
+            group = get_session_group(session)
+            if group is None:
+                if 'Ungrouped' not in sessions_by_group:
+                    sessions_by_group['Ungrouped'] = []
+                sessions_by_group['Ungrouped'].append(session)
+            else:
+                if group not in sessions_by_group:
+                    sessions_by_group[group] = []
+                sessions_by_group[group].append(session)
+        
+        # If target group specified, filter to just that group
+        if target_group:
+            print(f"Listing sessions for group: {target_group}")
+            if target_group not in sessions_by_group:
+                print(f"No sessions found for group '{target_group}'.")
+                return []
+            display_groups = {target_group: sessions_by_group[target_group]}
+            sessions = sessions_by_group[target_group]
+        else:
+            display_groups = sessions_by_group
+            sessions = []
+            for group_sessions in sessions_by_group.values():
+                sessions.extend(group_sessions)
+        
+        print(f"Found {len(sessions)} active session(s):")
         print()
         
         term_width = get_terminal_width()
         
-        for session in sessions:
-            session_info = get_session_info(session)
+        for group, group_sessions in display_groups.items():
+            if group == "Ungrouped":
+                print("Ungrouped Sessions:")
+            else:
+                print(f"Group: {group}")
             
-            if not session_info:
-                print(f"  • {session} (No info available)")
-                continue
-            
-            # Basic status indicator (emoji + color if supported)
-            status_emoji = "🟢" if session_info['running'] else "🔴"
-            
-            # Format runtime
-            runtime_str = format_duration(session_info['runtime']) if session_info['running'] else "N/A"
-            
-            # Print basic session info
-            print(f"  {status_emoji} {session} (PID: {session_info['pid']})")
-            print(f"    Status: {session_info['status']} | Runtime: {runtime_str}")
-            print(f"    Command: {session_info['command']}")
-            
-            if verbose:
-                if session_info['running']:
-                    # Print resource usage
-                    print(f"    CPU: {session_info['cpu']:.1f}% | Memory: {session_info['memory_mb']:.1f} MB")
-                    print(f"    Started: {session_info['start_time']}")
+            for session in group_sessions:
+                session_info = get_session_info(session)
                 
-                # Print recent output if available
-                if session_info['output_file']:
-                    output = get_session_output(session_info['output_file'], output_lines)
-                    print("\n    Recent output:")
-                    # Print a separator line
-                    print("    " + "-" * min(70, term_width - 8))
-                    # Print each line of output with indentation
-                    for line in output.split('\n')[:output_lines]:
-                        # Truncate long lines to fit terminal
-                        if len(line) > term_width - 8:
-                            line = line[:term_width - 11] + "..."
-                        print(f"    | {line}")
-                    print("    " + "-" * min(70, term_width - 8))
-                    print(f"    Full log: {session_info['output_file']}")
+                if not session_info:
+                    print(f"  • {session} (No info available)")
+                    continue
+                
+                # Basic status indicator
+                status_emoji = "🟢" if session_info['running'] else "🔴"
+                
+                # Extract the job name part (after the group)
+                group_prefix = get_session_group(session)
+                if group_prefix:
+                    job_name = session[len(group_prefix)+1:]  # +1 for the underscore
                 else:
-                    print("    No output captured.")
+                    job_name = session
+                
+                # Format runtime
+                runtime_str = format_duration(session_info['runtime']) if session_info['running'] else "N/A"
+                
+                # Print basic session info
+                print(f"  {status_emoji} {job_name} (PID: {session_info['pid']})")
+                print(f"    Status: {session_info['status']} | Runtime: {runtime_str}")
+                print(f"    Command: {session_info['command']}")
+                
+                if verbose:
+                    if session_info['running']:
+                        # Print resource usage
+                        print(f"    CPU: {session_info['cpu']:.1f}% | Memory: {session_info['memory_mb']:.1f} MB")
+                        print(f"    Started: {session_info['start_time']}")
+                    
+                    # Print recent output if available
+                    if session_info['output_file']:
+                        output = get_session_output(session_info['output_file'], output_lines)
+                        print("\n    Recent output:")
+                        # Print a separator line
+                        print("    " + "-" * min(70, term_width - 8))
+                        # Print each line of output with indentation
+                        for line in output.split('\n')[:output_lines]:
+                            # Truncate long lines to fit terminal
+                            if len(line) > term_width - 8:
+                                line = line[:term_width - 11] + "..."
+                            print(f"    | {line}")
+                        print("    " + "-" * min(70, term_width - 8))
+                        print(f"    Full log: {session_info['output_file']}")
+                    else:
+                        print("    No output captured.")
+                
+                print()
             
             print()
         
@@ -312,14 +484,40 @@ def list_tmux_sessions(verbose=False, output_lines=OUTPUT_LINES):
         print(f"Error listing sessions: {e}")
         return []
 
+def kill_sessions_by_group(group_name):
+    """Kill all sessions in a specific group"""
+    sessions_by_group = get_sessions_by_group(group_name)
+    
+    if group_name not in sessions_by_group:
+        print(f"No sessions found for group '{group_name}'.")
+        return 0
+    
+    sessions = sessions_by_group[group_name]
+    print(f"Killing {len(sessions)} session(s) in group '{group_name}':")
+    
+    killed_count = 0
+    for session in sessions:
+        # Convert to tmux format (underscore) for the kill command
+        tmux_name = session.replace('.', '_')
+        print(f"  • Killing session: {session}")
+        subprocess.run(['tmux', 'kill-session', '-t', tmux_name])
+        killed_count += 1
+    
+    print(f"Killed {killed_count} session(s).")
+    return killed_count
+
 def main():
-    parser = argparse.ArgumentParser(description='Run jobs in tmux sessions')
+    parser = argparse.ArgumentParser(description='Run jobs in tmux sessions with group management')
     parser.add_argument('jobs_file', nargs='?', help='File containing jobs to run')
-    parser.add_argument('--list', '-l', action='store_true', help='List running tmux sessions')
+    parser.add_argument('--group', '-g', help='Specify a group name for jobs (default: auto-generated)')
+    parser.add_argument('--list', '-l', action='store_true', help='List all running tmux sessions')
+    parser.add_argument('--list-groups', '-L', action='store_true', help='List all job groups')
+    parser.add_argument('--list-group', metavar='GROUP_NAME', help='List sessions in a specific group')
     parser.add_argument('--verbose', '-v', action='store_true', help='Show detailed session information')
     parser.add_argument('--output-lines', '-n', type=int, default=OUTPUT_LINES, 
                        help=f'Number of output lines to show (default: {OUTPUT_LINES})')
     parser.add_argument('--kill-all', '-K', action='store_true', help='Kill all tmux sessions')
+    parser.add_argument('--kill-group', metavar='GROUP_NAME', help='Kill all sessions in a specific group')
     parser.add_argument('--kill', '-k', metavar='SESSION_NAME', help='Kill a specific tmux session')
     parser.add_argument('--attach', '-a', metavar='SESSION_NAME', help='Attach to a specific tmux session')
     parser.add_argument('--force', '-f', action='store_true', help='Force recreation of sessions even if they exist')
@@ -336,12 +534,17 @@ def main():
         print("Error: tmux not found. Please install tmux first.")
         sys.exit(1)
     
-    # Check if psutil is installed
-    try:
-        import psutil
-    except ImportError:
-        print("Error: psutil module not found. Install it with: pip install psutil")
-        sys.exit(1)
+    if args.list_groups:
+        list_groups()
+        return
+    
+    if args.kill_group:
+        kill_sessions_by_group(args.kill_group)
+        return
+    
+    if args.list_group:
+        list_tmux_sessions(args.verbose, args.output_lines, args.list_group)
+        return
     
     if args.show_output:
         session_name = args.show_output
@@ -406,6 +609,17 @@ def main():
         print("No jobs found in file.")
         return
     
+    # Generate or use provided group name
+    group_name = args.group if args.group else generate_group_name()
+    
+    # Ensure group_name has the proper prefix format - do this ONCE for all jobs
+    if not group_name.startswith(GROUP_PREFIX):
+        date_str = datetime.datetime.now().strftime("%m%d")
+        adj = random.choice(ADJECTIVES)
+        group_name = f"{GROUP_PREFIX}_{adj}_{group_name}_{date_str}"
+    
+    print(f"Using job group: {group_name}")
+    
     print(f"Starting {len(jobs)} job(s) in tmux sessions...")
     
     created_count = 0
@@ -413,6 +627,7 @@ def main():
     
     for job in jobs:
         success = create_tmux_session(
+            group_name,
             job['name'],
             job['command'],
             job.get('working_dir'),
@@ -426,16 +641,15 @@ def main():
     
     print(f"\nJob summary: {created_count} created, {skipped_count} skipped")
     
-    print("\nCurrent sessions:")
-    sessions = list_tmux_sessions(args.verbose, args.output_lines)
+    print("\nCurrent sessions in this group:")
+    sessions = list_tmux_sessions(args.verbose, args.output_lines, group_name)
     
     if sessions:
         print("\nYou can:")
-        print("  • List sessions (basic):     ./tmux_manager.py --list")
-        print("  • List with details:         ./tmux_manager.py --list --verbose")
-        print("  • View full session output:  ./tmux_manager.py --show-output SESSION_NAME")
-        print("  • Attach to a session:       ./tmux_manager.py --attach SESSION_NAME")
-        print("  • Kill a specific session:   ./tmux_manager.py --kill SESSION_NAME")
+        print(f"  • List this group:          ./tmux_manager.py --list-group {group_name}")
+        print(f"  • Kill this group:          ./tmux_manager.py --kill-group {group_name}")
+        print("  • List all groups:          ./tmux_manager.py --list-groups")
+        print("  • View job output:          ./tmux_manager.py --show-output GROUP.JOB_NAME")
 
 if __name__ == "__main__":
     main()

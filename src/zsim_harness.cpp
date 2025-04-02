@@ -471,7 +471,7 @@ int main(int argc, char *argv[]) {
             info("Attached to global heap");
         }
 
-        printHeartbeat(zinfo, outputDir);  // ensure we dump hostname etc on early crashes
+        // printHeartbeat(zinfo, outputDir);  // ensure we dump hostname etc on early crashes
 
         int left = sleep(sleepLength);
         int secsSlept = sleepLength - left;
@@ -503,7 +503,7 @@ int main(int argc, char *argv[]) {
             } //otherwise, activeProcs == 0; we're done
         }
 
-        printHeartbeat(zinfo, outputDir);
+        // printHeartbeat(zinfo, outputDir);
 
         //This solves a weird race in multiprocess where SIGCHLD does not always fire...
         int cpid = -1;

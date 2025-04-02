@@ -1,0 +1,7 @@
+[
+  {
+    "name": "johnny-cc-web-test-ndc-f-2G-16G",
+    "command": "./utils/run.sh benchmarks cc-web ndc-f_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

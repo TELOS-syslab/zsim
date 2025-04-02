@@ -21,10 +21,11 @@ void IdealFullyScheme::updateLRU(uint32_t way) {
     }
     
     // Insert at MRU position
+    uint32_t old_prev_of_mru = _lru_array[_mru_way].prev; // Store this before modifying
     _lru_array[way].next = _mru_way;
-    _lru_array[way].prev = _lru_array[_mru_way].prev;
+    _lru_array[way].prev = old_prev_of_mru;
     _lru_array[_mru_way].prev = way;
-    _lru_array[_lru_array[way].prev].next = way;
+    _lru_array[old_prev_of_mru].next = way;
     _mru_way = way;
 }
 

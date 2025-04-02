@@ -129,6 +129,7 @@ class FilterCache : public Cache {
 
         inline uint64_t load(Address vAddr, uint64_t curCycle) {
             Address vLineAddr = vAddr >> lineBits;
+            // info("load: vLineAddr = %lx", vLineAddr);
             uint32_t idx = vLineAddr & setMask;
             uint64_t availCycle = filterArray[idx].availCycle; //read before, careful with ordering to avoid timing races
             if (vLineAddr == filterArray[idx].rdAddr) {
@@ -141,6 +142,7 @@ class FilterCache : public Cache {
 
         inline uint64_t store(Address vAddr, uint64_t curCycle) {
             Address vLineAddr = vAddr >> lineBits;
+            // info("store: vLineAddr = %lx", vLineAddr);
             uint32_t idx = vLineAddr & setMask;
             uint64_t availCycle = filterArray[idx].availCycle; //read before, careful with ordering to avoid timing races
             if (vLineAddr == filterArray[idx].wrAddr) {
