@@ -262,8 +262,12 @@ void CHAMOScheme::UpdateMappingInfo(uint64_t dram_cache_idx, uint64_t level_idx)
     return;
 }
 
-uint64_t CHAMOScheme::Index(uint64_t phy_line_addr)
+uint64_t CHAMOScheme::Index(uint64_t cache_addr)
 {
+
+    uint64_t phy_line_addr = lcg_.LCG_hash(cache_addr, 0);
+    assert(phy_line_addr < nr_cxl_cache_);
+
     hash_metric_.nr_period_access_cnt_ += 1;
 
     // 我们提出cxl_level的概念, e.g., DRAM:CXL = 1:4情况下，CXL_level = 4
@@ -299,7 +303,8 @@ uint64_t CHAMOScheme::Index(uint64_t phy_line_addr)
 uint64_t CHAMOScheme::access(MemReq& req) {
     // Determine request type
     ReqType type = (req.type == GETS || req.type == GETX) ? LOAD : STORE;
-    Address address = req.lineAddr % (_ext_size / 64);
+    // Address address = req.lineAddr % (_ext_size / 64);
+    Address address = req.lineAddr;
 
     uint32_t mcdram_select = 0;
     Address mc_address = Index(address);
@@ -308,10 +313,10 @@ uint64_t CHAMOScheme::access(MemReq& req) {
     assert(mc_address < _cache_size / 64);
     assert(address < _ext_size / 64);
 
-    // info("phy_addr = 0x%lx, cache_addr = 0x%lx, set_num = %ld, tag = 0x%lx, line_num = %ld\n", address, mc_address, set_num, tag, line_num);
+    //info("RW:%d, lineAddr = 0x%lx, phy_addr = 0x%lx, cache_addr = 0x%lx, set_num = %ld, tag = 0x%lx\n", type, req.lineAddr, address, mc_address, set_num, tag);
 
     // Check for cache hit
-    uint32_t hit_way = _num_ways;
+    uint32_t hit_way = 0;
     if (!(_cache[set_num].ways[hit_way].valid && _cache[set_num].ways[hit_way].tag == tag)) {
         hit_way = 0;
     }
@@ -349,6 +354,9 @@ uint64_t CHAMOScheme::access(MemReq& req) {
                 MemReq wb_req = {wb_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
                 _mc->_ext_dram->access(wb_req, 2, 4);  // Write-back to main memory
                 _ext_bw_per_step += 4;
+                _numDirtyEviction.inc();
+            } else if (_cache[set_num].ways[victim_way].valid) {
+                _numCleanEviction.inc();
             }
 
             // Insert new line (fill operation)
@@ -379,6 +387,9 @@ uint64_t CHAMOScheme::access(MemReq& req) {
                 MemReq wb_req = {wb_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
                 _mc->_ext_dram->access(wb_req, 2, 4);  // Write-back to main memory, non-critical
                 _ext_bw_per_step += 4;
+                _numDirtyEviction.inc();
+            } else if (_cache[set_num].ways[victim_way].valid) {
+                _numCleanEviction.inc();
             }
             // Insert new line
             _cache[set_num].ways[victim_way].tag = tag;
@@ -440,7 +451,7 @@ void CHAMOScheme::period(MemReq& req) {
 
 void CHAMOScheme::initStats(AggregateStat* parentStat) {
     AggregateStat* stats = new AggregateStat();
-    stats->init("idealBalancedCache", "IdealBalanced Cache stats");
+    stats->init("chamoCache", "CHAMO Cache stats");
     _numCleanEviction.init("cleanEvict", "Clean Eviction");
     stats->append(&_numCleanEviction);
     _numDirtyEviction.init("dirtyEvict", "Dirty Eviction");

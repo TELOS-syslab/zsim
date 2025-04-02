@@ -1,0 +1,47 @@
+[
+  {
+    "name": "bc-twitter-chamo_1G_32G",
+    "command": "./utils/run.sh benchmarks bc-twitter chamo_1G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "bc-twitter-chamo_2G_32G",
+    "command": "./utils/run.sh benchmarks bc-twitter chamo_2G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "bc-twitter-chamo_4G_32G",
+    "command": "./utils/run.sh benchmarks bc-twitter chamo_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "bc-twitter-ndc-0_1G_32G",
+    "command": "./utils/run.sh benchmarks bc-twitter ndc-0_1G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "bc-twitter-ndc-0_2G_32G",
+    "command": "./utils/run.sh benchmarks bc-twitter ndc-0_2G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "bc-twitter-ndc-0_4G_32G",
+    "command": "./utils/run.sh benchmarks bc-twitter ndc-0_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "bc-twitter-ndc-f_1G_32G",
+    "command": "./utils/run.sh benchmarks bc-twitter ndc-f_1G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "bc-twitter-ndc-f_2G_32G",
+    "command": "./utils/run.sh benchmarks bc-twitter ndc-f_2G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "bc-twitter-ndc-f_4G_32G",
+    "command": "./utils/run.sh benchmarks bc-twitter ndc-f_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

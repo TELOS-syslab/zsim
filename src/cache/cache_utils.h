@@ -14,6 +14,10 @@ enum Scheme {
     CopyCache,
     NDC,
     IdealBalanced,
+    IdealAssociative,
+    IdealFully,
+    IdealHotness,
+    CHAMO,
     UNKNOWN
 };
 

@@ -3,7 +3,8 @@
 #include "mc.h"
 
 uint64_t CopyCacheScheme::access(MemReq& req) {
-    Address address = req.lineAddr % (_ext_size / 64);
+    // Address address = req.lineAddr % (_ext_size / 64);
+    Address address = req.lineAddr;
     uint32_t mcdram_select = (address / 64) % _mc->_mcdram_per_mc;
     Address mc_address = (address / 64 / _mc->_mcdram_per_mc * 64) | (address % 64);
     
@@ -66,7 +67,7 @@ void CopyCacheScheme::period(MemReq& req) {
 
 void CopyCacheScheme::initStats(AggregateStat* parentStat) {
     AggregateStat* stats = new AggregateStat();
-    stats->init("cacheOnly", "CopyCache stats");
+    stats->init("copyCache", "Copy Cache stats");
     _numLoadHit.init("loadHit", "Load Hit");
     stats->append(&_numLoadHit);
     parentStat->append(stats);

@@ -1,0 +1,7 @@
+[
+  {
+    "name": "johnny-ddr-chamo-random-lu",
+    "command": "./utils/run.sh ddr lu chamo-random",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

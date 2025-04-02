@@ -11,3 +11,6 @@ ln -s `which python3` /usr/bin/python
 ln -s /usr/include/asm-generic /usr/include/asm
 git config --global --add safe.directory $ZSIMPATH
 
+#echo 18446744073692774399 > /proc/sys/kernel/shmmax
+sudo sysctl -w kernel.shmmax=18446744073692774399
+sudo sysctl -w kernel.yama.ptrace_scope=0

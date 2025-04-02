@@ -38,6 +38,7 @@ class CHAMOScheme : public CacheScheme  {
         CHAMOScheme(Config& config, MemoryController* mc): CacheScheme(config, mc),
             nr_dram_cache_(_cache_size / 64),
             nr_cxl_cache_(_ext_size / 64),
+            dram_ratio_(nr_cxl_cache_ / nr_dram_cache_ ),
             nr_map_limit_(1),
             load_ratio_(95),
             cuckoo_window_len_(4),
@@ -51,6 +52,7 @@ class CHAMOScheme : public CacheScheme  {
             lcg_(nr_cxl_cache_),
             next_line_(nr_dram_cache_)
             {
+                _scheme = CHAMO;
             };
 
     protected:

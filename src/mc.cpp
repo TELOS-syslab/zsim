@@ -1,15 +1,20 @@
 #include "mc.h"
+
+#include <errno.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <errno.h>
-#include <string.h>
+
 #include "cache/alloy.h"
 #include "cache/banshee.h"
 #include "cache/cacheonly.h"
+#include "cache/chamo.h"
 #include "cache/copycache.h"
-#include "cache/ndc.h"
+#include "cache/ideal_associative.h"
 #include "cache/ideal_balanced.h"
+#include "cache/ideal_fully.h"
+#include "cache/ndc.h"
 #include "cache/nocache.h"
 #include "cache/unison.h"
 #include "ddr_mem.h"
@@ -17,7 +22,6 @@
 #include "dramsim_mem_ctrl.h"
 #include "mem_ctrls.h"
 #include "zsim.h"
-
 
 // Helper function to check if a directory exists
 inline bool file_exists(const std::string& path) {
@@ -90,7 +94,6 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
         new (_ext_dram) DRAMSim3Memory(dramIni, outputDir, cpuFreqMHz, latency, domain, ext_dram_name);
     } else
         panic("Invalid memory controller type %s", _ext_type.c_str());
-
 
     // Configure MCDRAM if applicable
     if (_scheme != NoCache) {
@@ -180,15 +183,117 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
     } else if (scheme == "IdealBalanced") {
         _scheme = IdealBalanced;
         _cache_scheme = new (gm_malloc(sizeof(IdealBalancedScheme))) IdealBalancedScheme(config, this);
+    } else if (scheme == "IdealAssociative") {
+        _scheme = IdealAssociative;
+        _cache_scheme = new (gm_malloc(sizeof(IdealAssociativeScheme))) IdealAssociativeScheme(config, this);
+    } else if (scheme == "IdealFully") {
+        _scheme = IdealFully;
+        _cache_scheme = new (gm_malloc(sizeof(IdealFullyScheme))) IdealFullyScheme(config, this);
+    } else if (scheme == "CHAMO") {
+        _scheme = CHAMO;
+        _cache_scheme = new (gm_malloc(sizeof(CHAMOScheme))) CHAMOScheme(config, this);
     } else {
         panic("Invalid cache scheme %s", scheme.c_str());
     }
 
     _num_steps = 0;
-    uint64_t cache_size = (uint64_t)config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024 * 1024;
+    uint32_t _page_size = config.get<uint32_t>("sys.mem.page_size", 4096); // 4096, 2097152
+    _page_bits = log2(_page_size);
+    if (_page_bits < 6) {
+        panic("Page size %d is too small, must be at least 64 bytes", _page_size);
+    } else if (_page_bits > 12) {
+        panic("Page size %d is too large, must be at most 4096 bytes", _page_size);
+    }
+
+
+    uint64_t cache_size = (uint64_t)config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024 * 1024; // Bytes
+    uint64_t ext_size = (uint64_t)config.get<uint32_t>("sys.mem.ext_dram.size", 0) * 1024 * 1024; // Bytes
+    if (cache_size == 0) {
+        cache_size = _page_size; // at least a page
+    }
+    assert(cache_size % _page_size == 0);
+    _cache_bits = log2(cache_size);
+    if (ext_size == 0) {
+        ext_size = 0xFFFFFFFFFFFFFFFF;
+    }
+    _ext_bits = log2(ext_size);
     _step_length = cache_size / 64 / 10;
     info("cache_size: %lu, step_length: %lu", cache_size, _step_length);
     _num_requests = 0;
+
+    _page_map_scheme = config.get<const char*>("sys.mem.pagemap_scheme", "Identical"); // Identical, Random, Johnny, JohnnyRandom
+    if (_page_map_scheme == "Johnny") {
+        _johnny_ptr = 0;
+    } else if (_page_map_scheme == "JohnnyRandom") {
+        _johnny_ptr = 0;
+        srand48_r((uint64_t)this, &_buffer);
+    } else if (_page_map_scheme == "Random") {
+        srand48_r((uint64_t)this, &_buffer);
+    } else if (_page_map_scheme == "Identical") { 
+        // Do nothing
+    } else {
+        panic("Invalid page mapping scheme %s", _page_map_scheme.c_str());
+    }
+
+    info("MemoryController %s initialized with page size %d, page mapping scheme %s", _name.c_str(), _page_size, _page_map_scheme.c_str());
+    info("MemoryController %s initialized with cache size %lu, ext size %lu", _name.c_str(), cache_size, ext_size);
+
+}
+
+Address MemoryController::mapPage(MemReq& req) {
+    Address vLineAddr = req.lineAddr;
+    ReqType type = (req.type == GETS || req.type == GETX) ? LOAD : STORE;
+    Address pLineAddr;
+    if (_page_map_scheme == "Identical") {
+        pLineAddr = vLineAddr & ((1UL << (_ext_bits - 6)) - 1);
+        return pLineAddr;
+    }
+
+    Address vpgnum = vLineAddr >> (_page_bits - 6); 
+    // uint64_t cache_line_mask = (1UL << (_cache_bits - 6)) - 1;
+    uint64_t cache_page_mask = (1UL << (_cache_bits - _page_bits)) - 1;
+    // uint64_t ext_line_mask = (1UL << (_ext_bits - 6)) - 1;
+    uint64_t ext_page_mask = (1UL << (_ext_bits - _page_bits)) - 1;
+    uint64_t pgnum;
+    // info("Johnny page mapping: vLineAddr = %lx, vpgnum = %lx", vLineAddr, vpgnum);
+    if (_tlb.find(vpgnum) == _tlb.end()) {
+        if (_page_map_scheme == "Johnny") {
+            pgnum = _johnny_ptr;
+            _johnny_ptr++;
+            _johnny_ptr &= ext_page_mask;
+            assert(_johnny_ptr != 0);
+            // info("Johnny page mapping: _johnny_ptr = %lx", _johnny_ptr);
+        } else if (_page_map_scheme == "JohnnyRandom") {
+            uint32_t current_block = _johnny_ptr / (cache_page_mask + 1);
+            do {
+                int64_t rand;
+                lrand48_r(&_buffer, &rand);
+                pgnum = current_block * (cache_page_mask + 1) + (rand & cache_page_mask);
+            } while (_exist_pgnum.find(pgnum) != _exist_pgnum.end());
+            _johnny_ptr++;
+            _johnny_ptr &= ext_page_mask;
+            assert(_johnny_ptr != 0);
+        } else if (_page_map_scheme == "Random") {
+            do {
+                int64_t rand;
+                lrand48_r(&_buffer, &rand);
+                // pgnum = rand & 0x000fffffffffffff;
+                // info("Random page mapping: pgnum = %lx => %lx", rand, rand & ((1UL << (_ext_bits - 6)) - 1));
+                // N.B. TAKE CARE OF '<<'
+                pgnum = rand & ext_page_mask;
+            } while (_exist_pgnum.find(pgnum) != _exist_pgnum.end());
+        } else {
+            panic("Invalid page mapping scheme %s", _page_map_scheme.c_str());
+        }
+        _tlb[vpgnum] = pgnum;
+        _exist_pgnum.insert(pgnum);
+    } else 
+        pgnum = _tlb[vpgnum];
+    pLineAddr = (pgnum << (_page_bits - 6)) | (vLineAddr & 0x3f);
+    // if (type == LOAD) {
+    //     info("rwttpe = %d, vLineAddr = %lx, vpgnum = %lx, pgnum = %lx, pLineAddr = %lx", req.type , vLineAddr, vpgnum, pgnum, pLineAddr);
+    // }
+    return pLineAddr;
 }
 
 uint64_t MemoryController::access(MemReq& req) {
@@ -209,7 +314,6 @@ uint64_t MemoryController::access(MemReq& req) {
     }
     if (req.type == PUTS) return req.cycle;
 
-
     futex_lock(&_lock);
 
     // Handle tracing if enabled
@@ -218,9 +322,13 @@ uint64_t MemoryController::access(MemReq& req) {
     }
 
     _num_requests++;
-    // Delegate access to CacheScheme
-    uint64_t result = _cache_scheme->access(req);
 
+    // Delegate access to CacheScheme
+    Address vLineAddr = req.lineAddr;
+    Address pLineAddr = mapPage(req);
+    req.lineAddr = pLineAddr;
+    uint64_t result = _cache_scheme->access(req);
+    req.lineAddr = vLineAddr;
 
     // Handle bandwidth balance if needed
     if (_bw_balance && _num_requests % _step_length == 0) {

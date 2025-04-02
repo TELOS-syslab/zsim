@@ -1,0 +1,92 @@
+[
+  {
+    "name": "random-page-chamo-cc",
+    "command": "./utils/run.sh page cc chamo",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-chamo-pr",
+    "command": "./utils/run.sh page pr chamo",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-chamo-lu",
+    "command": "./utils/run.sh page lu chamo",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-alloy-cc",
+    "command": "./utils/run.sh page cc alloy",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-alloy-pr",
+    "command": "./utils/run.sh page pr alloy",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-alloy-lu",
+    "command": "./utils/run.sh page lu alloy",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-ndc-4096-0-cc",
+    "command": "./utils/run.sh page cc ndc-4096-0",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-ndc-4096-0-pr",
+    "command": "./utils/run.sh page pr ndc-4096-0",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-ndc-2048-0-lu",
+    "command": "./utils/run.sh page lu ndc-2048-0",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-ndc-4096-f-cc",
+    "command": "./utils/run.sh page cc ndc-4096-f",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-ndc-4096-f-pr",
+    "command": "./utils/run.sh page pr ndc-4096-f",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-ndc-4096-f-lu",
+    "command": "./utils/run.sh page lu ndc-4096-f",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-idealfully-cc",
+    "command": "./utils/run.sh page cc idealfully",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-idealfully-pr",
+    "command": "./utils/run.sh page pr idealfully",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-idealfully-lu",
+    "command": "./utils/run.sh page lu idealfully",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-idealbalanced-cc",
+    "command": "./utils/run.sh page cc idealbalanced",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-idealbalanced-pr",
+    "command": "./utils/run.sh page pr idealbalanced",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "random-page-idealbalanced-lu",
+    "command": "./utils/run.sh page lu idealbalanced",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

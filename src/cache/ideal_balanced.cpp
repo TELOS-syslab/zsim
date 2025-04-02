@@ -8,7 +8,8 @@
 uint64_t IdealBalancedScheme::access(MemReq& req) {
     // Determine request type
     ReqType type = (req.type == GETS || req.type == GETX) ? LOAD : STORE;
-    Address address = req.lineAddr % (_ext_size / 64);
+    // Address address = req.lineAddr % (_ext_size / 64);
+    Address address = req.lineAddr;
 
     uint32_t mcdram_select = 0;
     Address mc_address = address;
@@ -67,6 +68,9 @@ uint64_t IdealBalancedScheme::access(MemReq& req) {
                 MemReq wb_req = {wb_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
                 _mc->_ext_dram->access(wb_req, 2, 4);  // Write-back to main memory
                 _ext_bw_per_step += 4;
+                _numDirtyEviction.inc();
+            } else if (_cache[set_num].ways[victim_way].valid) {
+                _numCleanEviction.inc();
             }
 
             // Insert new line (fill operation)
@@ -107,6 +111,9 @@ uint64_t IdealBalancedScheme::access(MemReq& req) {
                 MemReq wb_req = {wb_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
                 _mc->_ext_dram->access(wb_req, 2, 4);  // Write-back to main memory, non-critical
                 _ext_bw_per_step += 4;
+                _numDirtyEviction.inc();
+            } else if (_cache[set_num].ways[victim_way].valid) {
+                _numCleanEviction.inc();
             }
             // Insert new line
             _cache[set_num].ways[victim_way].tag = tag;
