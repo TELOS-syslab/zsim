@@ -1,5 +1,20 @@
 [
   {
+    "name": "cc-twitter-alloy_1G_16G",
+    "command": "./utils/run.sh benchmarks cc-twitter alloy_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cc-twitter-alloy_2G_16G",
+    "command": "./utils/run.sh benchmarks cc-twitter alloy_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cc-twitter-alloy_4G_16G",
+    "command": "./utils/run.sh benchmarks cc-twitter alloy_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
     "name": "cc-twitter-chamo_2G_16G",
     "command": "./utils/run.sh benchmarks cc-twitter chamo_2G_16G",
     "working_dir": "~/chunk/git/git-own/zsim/"

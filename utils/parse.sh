@@ -5,17 +5,18 @@ source $current_dir/env.sh
 if [ -z "$ZSIMPATH" ]; then
     ZSIMPATH='.'
 fi
+cd $ZSIMPATH
 
-WINDOW_SIZE=100
-STEP=1
-USE_H5=false
+FROM=38
+TO=100
+WINDOW_SIZE=10
+STEP=10
+USE_H5=true
 VERBOSE=true
 if [ "$USE_H5" == "true" ]; then
     WINDOW_SIZE=$((WINDOW_SIZE * 10))
     STEP=$((STEP * 10))
 fi
-
-cd $ZSIMPATH
 
 # Function to process a single directory
 process_stat() {
@@ -26,6 +27,7 @@ process_stat() {
     local verbose="$5"
     echo "Processing directory: $dir"
     echo "use_f5: $use_h5, window_size: $window_size, step: $step"
+
     if [ "$use_h5" == "true" ]; then
         if [ "$verbose" == "true" ]; then
             ./utils/parse/parse_stats.py "$dir" -t hit -w "$window_size" -s "$step"  --plot -h5 -v
@@ -37,7 +39,7 @@ process_stat() {
         
     else
         if [ "$verbose" == "true" ]; then
-            # ./utils/parse/parse_stats.py "$dir" -t hit -w "$window_size" -s "$step"  --plot -v
+            ./utils/parse/parse_stats.py "$dir" -t hit -w "$window_size" -s "$step"  --plot -v
             ./utils/parse/parse_stats.py "$dir" -t ipc -w "$window_size" -s "$step"  --plot -v
         else
             ./utils/parse/parse_stats.py "$dir" -t hit -w "$window_size" -s "$step"  --plot
@@ -49,7 +51,7 @@ process_stat() {
 export -f process_stat  # Export the function for parallel execution
 
 # Process directories in parallel
-for pattern in {19..19}; do
+for pattern in `seq $FROM $TO`; do
     echo "Processing pattern: ${pattern}*"
     # Find all matching directories and process them in parallel
     find output/collect/${pattern}*/*[\[\]]* -type d | \

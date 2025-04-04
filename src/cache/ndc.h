@@ -52,11 +52,13 @@ class NDCScheme : public CacheScheme {
         // Calculate number of tag bits based on number of ways
         _cache_tag_bits = ceil(log2(_num_ways));
         _index_bits = ceil(log2(_num_sets));
-        assert(_cache_bits == _cache_tag_bits + _index_bits);
+        assert_msg(_cache_bits == _cache_tag_bits + _index_bits + _shift_bits, "cache_bits: %d, cache_tag_bits: %d, index_bits: %d", _cache_bits, _cache_tag_bits, _index_bits);
         _pred_tag_bits = _ext_bits - _cache_bits;
         _pred_tag_mask = ((1ULL << _pred_tag_bits) - 1) << _cache_bits;
         assert(_cache_bits <= _ext_bits);
         assert(_cache_tag_bits <= _co_mask + 1);
+
+        info("index_bits: %d, cache_tag_bits: %d, pred_tag_bits: %d\n", _index_bits, _cache_tag_bits, _pred_tag_bits);
 
         // Get user-specified index mask if provided, otherwise use default
         uint32_t index_mask_upper = config.get<uint32_t>("sys.mem.mcdram.index_mask_upper", 0x0);

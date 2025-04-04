@@ -7,6 +7,7 @@
 #include "stats.h"
 #include "galloc.h"  // Add this for gm_malloc
 #include "zsim.h"
+#include "log.h"
 
 #define MAX_STEPS 10000
 class MemoryController;
