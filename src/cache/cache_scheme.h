@@ -1,6 +1,7 @@
 #ifndef _CACHE_SCHEME_H_
 #define _CACHE_SCHEME_H_
 
+#include <cmath>
 #include "cache/cache_utils.h"
 #include "memory_hierarchy.h"
 #include "stats.h"
@@ -19,6 +20,12 @@ class CacheScheme {
     uint64_t _num_ways;     // Associativity
     uint64_t _cache_size;   // Total cache size in bytes
     uint64_t _ext_size;     // Total external memory size in bytes
+    uint64_t _page_size;
+    uint32_t _page_bits;
+    uint32_t _cache_bits;
+    uint32_t _ext_bits;
+    uint32_t _shift_bits;
+
     uint64_t _num_sets;     // Number of sets
     Set* _cache;            // Cache structure
     bool _sram_tag;         // SRAM tag flag
@@ -44,14 +51,28 @@ class CacheScheme {
         _llc_latency = config.get<uint32_t>("sys.caches.l3.latency");
         _bw_balance = config.get<bool>("sys.mem.bwBalance", false);
         _ds_index = 0;
-
+        _shift_bits = 6;
+        
         _granularity = config.get<uint32_t>("sys.mem.mcdram.cache_granularity", 64);
         _num_ways = config.get<uint32_t>("sys.mem.mcdram.num_ways", 1);
+        _page_size = config.get<uint32_t>("sys.mem.page_size", 4096); // 4096, 2097152
         _cache_size = (uint64_t)config.get<uint32_t>("sys.mem.mcdram.size", 128) * 1024 * 1024; // Bytes
         _ext_size = (uint64_t)config.get<uint32_t>("sys.mem.ext_dram.size", 0) * 1024 * 1024; // Bytes
+        _page_bits = log2(_page_size);
+        if (_page_bits < 6) {
+            panic("Page size %d is too small, must be at least 64 bytes", _page_size);
+        } else if (_page_bits > 12) {
+            panic("Page size %d is too large, must be at most 4096 bytes", _page_size);
+        }
+        if (_cache_size == 0) {
+            _cache_size = _page_size; // at least a page
+        }
+        assert(_cache_size % _page_size == 0);
+        _cache_bits = log2(_cache_size);
         if (_ext_size == 0) {
             _ext_size = 0xFFFFFFFFFFFFFFFF;
         }
+        _ext_bits = log2(_ext_size);
         if (_num_ways == 0) {
             _num_ways = _cache_size / _granularity;
         }

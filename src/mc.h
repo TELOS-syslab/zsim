@@ -41,8 +41,8 @@ class MemoryController : public MemObject {
     uint64_t _johnny_ptr;
     drand48_data _buffer;
     uint32_t _page_bits;
-    uint64_t _cache_bits;
-    uint64_t _ext_bits;
+    uint32_t _cache_bits;
+    uint32_t _ext_bits;
 
    public:
     MemObject* _ext_dram;     // External DRAM

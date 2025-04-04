@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <cmath>
 
 #include "cache/alloy.h"
 #include "cache/banshee.h"

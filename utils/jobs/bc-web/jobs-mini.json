@@ -1,0 +1,47 @@
+[
+  {
+    "name": "bc-web-chamo_1G_32G",
+    "command": "./utils/run.sh benchmarks bc-web chamo_1G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "bc-web-chamo_2G_32G",
+    "command": "./utils/run.sh benchmarks bc-web chamo_2G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "bc-web-chamo_4G_32G",
+    "command": "./utils/run.sh benchmarks bc-web chamo_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "bc-web-ndc-0_1G_32G",
+    "command": "./utils/run.sh benchmarks bc-web ndc-0_1G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "bc-web-ndc-0_2G_32G",
+    "command": "./utils/run.sh benchmarks bc-web ndc-0_2G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "bc-web-ndc-0_4G_32G",
+    "command": "./utils/run.sh benchmarks bc-web ndc-0_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "bc-web-ndc-f_1G_32G",
+    "command": "./utils/run.sh benchmarks bc-web ndc-f_1G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "bc-web-ndc-f_2G_32G",
+    "command": "./utils/run.sh benchmarks bc-web ndc-f_2G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "bc-web-ndc-f_4G_32G",
+    "command": "./utils/run.sh benchmarks bc-web ndc-f_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

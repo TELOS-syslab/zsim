@@ -19,3 +19,4 @@ heartbeat
 /contrib
 /.sconsign.dblite
 /bak*/
+/logs

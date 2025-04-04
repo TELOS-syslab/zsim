@@ -1,36 +1,30 @@
 #include "cache/ideal_hotness.h"
-
-#include <cstdlib>  // For std::rand
-#include <algorithm> // For std::find
+#include <algorithm>
 #include <vector>
-
 #include "mc.h"
 
-// Update LRU state when a way is accessed - O(1) operation
-void IdealHotnessScheme::updateLRU(uint32_t way) {
-    if (way == _mru_way) return; // Already MRU
+IdealHotnessScheme::IdealHotnessScheme(Config& config, MemoryController* mc) : CacheScheme(config, mc) {
+    _scheme = IdealHotness;
     
-    // Remove from current position
-    uint32_t prev = _lru_array[way].prev;
-    uint32_t next = _lru_array[way].next;
-    _lru_array[prev].next = next;
-    _lru_array[next].prev = prev;
+    // Get page size from config (in bytes)
+    _page_size = config.get<uint32_t>("sys.mem.mcdram.pageSize", 4096);
     
-    if (way == _lru_way) {
-        _lru_way = prev;
+    // Calculate number of pages that can fit in cache
+    _num_pages = _cache_size / _page_size;
+    _lines_per_page = _page_size / _granularity;
+    _period_counter = 0;
+    
+    info("IdealHotnessScheme initialized with %d pages, page size %d bytes, %d lines per page",
+         _num_pages, _page_size, _lines_per_page);
+    
+    // Initialize page table
+    _page_table = new PageEntry[_num_pages];
+    for (uint32_t i = 0; i < _num_pages; i++) {
+        _page_table[i].frequency = 0;
+        _page_table[i].valid = false;
+        _page_table[i].dirty = false;
+        _page_table[i].tag = 0;
     }
-    
-    // Insert at MRU position
-    _lru_array[way].next = _mru_way;
-    _lru_array[way].prev = _lru_array[_mru_way].prev;
-    _lru_array[_mru_way].prev = way;
-    _lru_array[_lru_array[way].prev].next = way;
-    _mru_way = way;
-}
-
-// Get the least recently used way - O(1) operation
-uint32_t IdealHotnessScheme::getLRUWay() {
-    return _lru_way;
 }
 
 uint64_t IdealHotnessScheme::getPageNumber(uint64_t lineAddr) {
@@ -48,16 +42,19 @@ void IdealHotnessScheme::incrementFrequency(uint32_t pageIndex) {
 }
 
 uint32_t IdealHotnessScheme::findVictimPage() {
-    uint32_t victim = 0;
-    uint32_t lowest_freq = UINT32_MAX;
-    
-    // Find page with lowest frequency
+    // First look for invalid pages
     for (uint32_t i = 0; i < _num_pages; i++) {
         if (!_page_table[i].valid) {
-            return i;  // Use empty page if available
+            return i;
         }
-        if (_page_table[i].frequency < lowest_freq) {
-            lowest_freq = _page_table[i].frequency;
+    }
+    
+    // Find page with lowest frequency
+    uint32_t victim = 0;
+    uint32_t min_freq = UINT32_MAX;
+    for (uint32_t i = 0; i < _num_pages; i++) {
+        if (_page_table[i].frequency < min_freq) {
+            min_freq = _page_table[i].frequency;
             victim = i;
         }
     }
@@ -65,10 +62,27 @@ uint32_t IdealHotnessScheme::findVictimPage() {
 }
 
 void IdealHotnessScheme::decayFrequencies() {
-    // Decay all frequencies by half periodically
     for (uint32_t i = 0; i < _num_pages; i++) {
-        _page_table[i].frequency >>= 1;
+        _page_table[i].frequency >>= 1;  // Divide by 2
     }
+}
+
+void IdealHotnessScheme::migrateHotPages() {
+    // Create vector of valid pages sorted by frequency
+    std::vector<std::pair<uint32_t, uint32_t>> pages; // (frequency, index)
+    for (uint32_t i = 0; i < _num_pages; i++) {
+        if (_page_table[i].valid) {
+            pages.push_back({_page_table[i].frequency, i});
+        }
+    }
+    
+    // Sort by frequency (highest first)
+    std::sort(pages.begin(), pages.end(),
+        [](const auto& a, const auto& b) { return a.first > b.first; });
+
+    // TODO: Implement page migration logic here
+    // This would involve moving pages between cache and ext memory
+    // based on their frequency ranking
 }
 
 uint64_t IdealHotnessScheme::access(MemReq& req) {
@@ -139,14 +153,18 @@ uint64_t IdealHotnessScheme::access(MemReq& req) {
         _page_location[page_number] = victim_index;
     }
 
+    // Check if we should migrate pages
+    _period_counter++;
+    if (_period_counter >= MIGRATION_PERIOD) {
+        migrateHotPages();
+        decayFrequencies();
+        _period_counter = 0;
+    }
+
     return data_ready_cycle;
 }
 
 void IdealHotnessScheme::period(MemReq& req) {
-    // Decay frequencies periodically
-    decayFrequencies();
-    
-    // Reset per-step counters
     _num_hit_per_step /= 2;
     _num_miss_per_step /= 2;
     _mc_bw_per_step /= 2;
@@ -195,8 +213,8 @@ void IdealHotnessScheme::period(MemReq& req) {
 
 void IdealHotnessScheme::initStats(AggregateStat* parentStat) {
     AggregateStat* stats = new AggregateStat();
-    stats->init("idealHotnessCache", "Page-Based Cache with Frequency Replacement stats");
-    _numCleanEviction.init("cleanEvict", "Clean Page Evictions");
+    stats->init("idealBalancedCache", "IdealBalanced Cache stats");
+    _numCleanEviction.init("cleanEvict", "Clean Eviction");
     stats->append(&_numCleanEviction);
     _numDirtyEviction.init("dirtyEvict", "Dirty Eviction");
     stats->append(&_numDirtyEviction);

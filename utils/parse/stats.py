@@ -12,9 +12,7 @@ import os
 import h5py # presents HDF5 files as numpy arrays
 import numpy as np
 
-# Open stats file
-curpath = os.path.dirname(os.path.realpath(__file__))
-f = h5py.File(os.path.join(curpath,'zsim.h5'), 'r')
+
 
 def print_hdf5_structure(h5_file, level=0):
     """Recursively print the structure of an HDF5 file."""
@@ -47,13 +45,19 @@ def h5_tree(val, pre=''):
                     print(pre + '├── ' + key + ' (%d)' % len(val))
                 except TypeError:
                     print(pre + '├── ' + key + ' (scalar)')
+                    
+                    
+# Open stats file
+curpath = os.path.dirname(os.path.realpath(__file__))
+f = h5py.File(os.path.join(curpath,'../../output/20250402-142905[chamo-johnny_lu_page]/zsim.h5'), 'r')
 print_hdf5_structure(f)
 h5_tree(f)
 
-
 # Get the single dataset in the file
-dset = f["stats"]["root"]
+dset = f["stats"]
+print(dset['root']['mem']['mem-0'][-1])
 
+exit()
 # Each dataset is first indexed by record (sample). A record is a *snapshot* of all the
 # stats taken at a specific time.  All stats files have at least two records,
 # at beginning (dest[0])and end of simulation (dset[-1]).  Inside each record,
@@ -71,11 +75,6 @@ print(l2_0_hits)
 # Hits into all L2s
 l2_hits = np.sum(dset[-1]['l2']['hGETS'] + dset[-1]['l2']['hGETX'])
 print(l2_hits)
-
-# Total number of instructions executed, counted by adding per-core counts
-# (you could also look at procInstrs)
-totalInstrs = np.sum(dset[-1]['simpleCore']['instrs'])
-print(totalInstrs)
 
 # You can also focus on one sample, or index over multiple steps, e.g.,
 lastSample = dset[-1]
