@@ -42,6 +42,10 @@ class CacheScheme {
     uint64_t _ext_bw_per_step;
     double _miss_rate_trace[MAX_STEPS];
     
+    // Add utilization statistics
+    uint64_t* _line_access_count;  // Counter for each cache line
+    uint64_t _total_lines;         // Total number of cache lines
+    uint64_t _stats_period;        // How often to log statistics (in accesses)
 
    public:
     CacheScheme(Config& config, MemoryController* mc)
@@ -102,6 +106,14 @@ class CacheScheme {
         for (uint32_t i = 0; i < MAX_STEPS; i++)
             _miss_rate_trace[i] = 0;
         _num_requests = 0;
+
+        // Initialize utilization statistics
+        /* _total_lines = _num_sets * _num_ways;
+        _line_access_count = (uint64_t*)gm_malloc(sizeof(uint64_t) * _total_lines);
+        for (uint64_t i = 0; i < _total_lines; i++) {
+            _line_access_count[i] = 0;
+        }
+        _stats_period = config.get<uint32_t>("sys.mem.mcdram.utilstats_period", 1000000);  // Default: log every 1M accesses */
     }
 
     virtual uint64_t access(MemReq& req) = 0;  // Pure virtual method for cache access
@@ -116,6 +128,18 @@ class CacheScheme {
     Set* getSets() { return _cache; };
     uint64_t getGranularity() const { return _granularity; }
     Scheme getScheme() { return _scheme; };
+
+    // Add method to log utilization statistics
+    virtual void logUtilizationStats() {
+        uint64_t accessed_lines = 0;
+        for (uint64_t i = 0; i < _total_lines; i++) {
+            if (_line_access_count[i] > 0) accessed_lines++;
+        }
+        
+        double utilization = (double)accessed_lines / _total_lines * 100;
+        info("Cache utilization: %.2f%% (%ld/%ld lines accessed)", 
+             utilization, accessed_lines, _total_lines);
+    }
 };
 
 #endif

@@ -1,0 +1,62 @@
+[
+  {
+    "name": "dlrm-alloy_1G_16G",
+    "command": "./utils/run.sh benchmarks dlrm alloy_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-alloy_2G_16G",
+    "command": "./utils/run.sh benchmarks dlrm alloy_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-alloy_4G_16G",
+    "command": "./utils/run.sh benchmarks dlrm alloy_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-idealbalanced_1G_16G",
+    "command": "./utils/run.sh benchmarks dlrm idealbalanced_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-idealbalanced_2G_16G",
+    "command": "./utils/run.sh benchmarks dlrm idealbalanced_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-idealbalanced_4G_16G",
+    "command": "./utils/run.sh benchmarks dlrm idealbalanced_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-idealfully_1G_16G",
+    "command": "./utils/run.sh benchmarks dlrm idealfully_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-idealfully_2G_16G",
+    "command": "./utils/run.sh benchmarks dlrm idealfully_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-idealfully_4G_16G",
+    "command": "./utils/run.sh benchmarks dlrm idealfully_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-ndc-0_1G_16G",
+    "command": "./utils/run.sh benchmarks dlrm ndc-0_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-ndc-0_2G_16G",
+    "command": "./utils/run.sh benchmarks dlrm ndc-0_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-ndc-0_4G_16G",
+    "command": "./utils/run.sh benchmarks dlrm ndc-0_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

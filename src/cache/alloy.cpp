@@ -39,6 +39,10 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
 
     if (hit_way != _num_ways) {
         // Cache hit
+        // Track access to this cache line
+        // uint64_t line_index = set_num * _num_ways + hit_way;
+        // _line_access_count[line_index]++;
+        
         _num_hit_per_step++;
         if (type == LOAD && _sram_tag) {
             MemReq read_req = {mc_address, GETX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
@@ -93,6 +97,10 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
 
         // Handle replacement
         if (replace_way < _num_ways) {
+            // Track access to the new cache line
+            // uint64_t line_index = set_num * _num_ways + replace_way;
+            // _line_access_count[line_index]++;
+
             MemReq insert_req = {mc_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
             uint32_t size = _sram_tag ? 4 : 6;
             _mc->_mcdram[mcdram_select]->access(insert_req, 2, size);
@@ -134,6 +142,19 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
 }
 
 void AlloyCacheScheme::period(MemReq& req) {
+   /*  static uint64_t access_count = 0;
+    access_count++;
+
+    // Log utilization stats periodically
+    if (access_count % _stats_period == 0) {
+        logUtilizationStats();
+        
+        // Reset access counts after logging
+        for (uint64_t i = 0; i < _total_lines; i++) {
+            _line_access_count[i] = 0;
+        }
+    } */
+
     _num_hit_per_step /= 2;
     _num_miss_per_step /= 2;
     _mc_bw_per_step /= 2;

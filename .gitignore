@@ -20,3 +20,4 @@ heartbeat
 /.sconsign.dblite
 /bak*/
 /logs
+/tests

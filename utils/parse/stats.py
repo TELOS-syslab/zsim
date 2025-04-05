@@ -11,7 +11,7 @@
 import os
 import h5py # presents HDF5 files as numpy arrays
 import numpy as np
-
+from pprint import pprint
 
 
 def print_hdf5_structure(h5_file, level=0):
@@ -46,6 +46,39 @@ def h5_tree(val, pre=''):
                 except TypeError:
                     print(pre + '├── ' + key + ' (scalar)')
                     
+def parse_zsim_h5(file_path: str):
+    """Parse ZSim HDF5 output file into a list of period dictionaries."""
+    result = []
+    
+    with h5py.File(file_path, 'r') as f:
+        dset = f["stats"]["root"]
+        
+        # Convert each record to a dictionary
+        for record_idx in range(len(dset)):
+            period_dict = {}
+            record = dset[record_idx]
+            
+            # Helper function to recursively convert structured numpy arrays to dict
+            def convert_to_dict(arr):
+                if isinstance(arr, np.void):  # Structured array record
+                    return {name: convert_to_dict(arr[name]) for name in arr.dtype.names}
+                elif isinstance(arr, np.ndarray):
+                    if arr.dtype.names:  # Structured array
+                        if len(arr.shape) > 1:  # Multi-dimensional structured array
+                            return [convert_to_dict(x) for x in arr]
+                        return {name: convert_to_dict(arr[name]) for name in arr.dtype.names}
+                    else:  # Regular array
+                        return arr.tolist()
+                else:  # Regular value
+                    if isinstance(arr, (np.integer, np.floating)):
+                        return arr.item()
+                    return arr
+            
+            # Convert the record to dictionary and wrap it in a root dictionary
+            period_dict['root'] = convert_to_dict(record)
+            result.append(period_dict)
+    
+    return result                   
                     
 # Open stats file
 curpath = os.path.dirname(os.path.realpath(__file__))
@@ -55,8 +88,10 @@ h5_tree(f)
 
 # Get the single dataset in the file
 dset = f["stats"]
-print(dset['root']['mem']['mem-0'][-1])
+pprint(dset['root']['mem']['mem-0'][-1])
 
+data = parse_zsim_h5(os.path.join(curpath,'../../output/20250402-142905[chamo-johnny_lu_page]/zsim.h5'))
+pprint(data[-1])
 exit()
 # Each dataset is first indexed by record (sample). A record is a *snapshot* of all the
 # stats taken at a specific time.  All stats files have at least two records,
