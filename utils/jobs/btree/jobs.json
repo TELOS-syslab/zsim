@@ -1,0 +1,107 @@
+[
+  {
+    "name": "btree-alloy_1G_16G",
+    "command": "./utils/run.sh benchmarks btree alloy_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-alloy_2G_16G",
+    "command": "./utils/run.sh benchmarks btree alloy_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-alloy_4G_16G",
+    "command": "./utils/run.sh benchmarks btree alloy_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-chamo_1G_16G",
+    "command": "./utils/run.sh benchmarks btree chamo_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-chamo_2G_16G",
+    "command": "./utils/run.sh benchmarks btree chamo_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-chamo_4G_16G",
+    "command": "./utils/run.sh benchmarks btree chamo_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-idealassociative_1G_16G",
+    "command": "./utils/run.sh benchmarks btree idealassociative_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-idealassociative_2G_16G",
+    "command": "./utils/run.sh benchmarks btree idealassociative_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-idealassociative_4G_16G",
+    "command": "./utils/run.sh benchmarks btree idealassociative_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-idealbalanced_1G_16G",
+    "command": "./utils/run.sh benchmarks btree idealbalanced_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-idealbalanced_2G_16G",
+    "command": "./utils/run.sh benchmarks btree idealbalanced_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-idealbalanced_4G_16G",
+    "command": "./utils/run.sh benchmarks btree idealbalanced_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-idealfully_1G_16G",
+    "command": "./utils/run.sh benchmarks btree idealfully_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-idealfully_2G_16G",
+    "command": "./utils/run.sh benchmarks btree idealfully_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-idealfully_4G_16G",
+    "command": "./utils/run.sh benchmarks btree idealfully_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-ndc-0_1G_16G",
+    "command": "./utils/run.sh benchmarks btree ndc-0_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-ndc-0_2G_16G",
+    "command": "./utils/run.sh benchmarks btree ndc-0_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-ndc-0_4G_16G",
+    "command": "./utils/run.sh benchmarks btree ndc-0_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-ndc-f_1G_16G",
+    "command": "./utils/run.sh benchmarks btree ndc-f_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-ndc-f_2G_16G",
+    "command": "./utils/run.sh benchmarks btree ndc-f_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-ndc-f_4G_16G",
+    "command": "./utils/run.sh benchmarks btree ndc-f_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

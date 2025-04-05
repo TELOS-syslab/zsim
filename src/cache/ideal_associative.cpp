@@ -27,7 +27,6 @@ uint64_t IdealAssociativeScheme::access(MemReq& req) {
         }
     }
 
-
     uint64_t data_ready_cycle = 0;
     MESIState state;
 
@@ -39,6 +38,7 @@ uint64_t IdealAssociativeScheme::access(MemReq& req) {
 
         if (hit_way < _num_ways) {
             // Cache hit
+            updateUtilizationStats(set_num, hit_way);
             _num_hit_per_step++;
             _numLoadHit.inc();
             data_ready_cycle = req.cycle;  // Data available after cache latency
@@ -91,6 +91,7 @@ uint64_t IdealAssociativeScheme::access(MemReq& req) {
             _cache[set_num].ways[victim_way].tag = tag;
             _cache[set_num].ways[victim_way].valid = true;
             _cache[set_num].ways[victim_way].dirty = false;  // LOAD: line is clean
+            updateUtilizationStats(set_num, victim_way);
         }
     } else {  // STORE
         // Simulate cache write access
@@ -100,6 +101,7 @@ uint64_t IdealAssociativeScheme::access(MemReq& req) {
 
         if (hit_way < _num_ways) {
             // Write hit
+            updateUtilizationStats(set_num, hit_way);
             _num_hit_per_step++;
             _numStoreHit.inc();
             _cache[set_num].ways[hit_way].dirty = true;
@@ -148,6 +150,7 @@ uint64_t IdealAssociativeScheme::access(MemReq& req) {
             _cache[set_num].ways[victim_way].valid = true;
             _cache[set_num].ways[victim_way].dirty = true;  // STORE: mark as dirty
             data_ready_cycle = req.cycle;
+            updateUtilizationStats(set_num, victim_way);
         }
     }
 
@@ -155,49 +158,59 @@ uint64_t IdealAssociativeScheme::access(MemReq& req) {
 }
 
 void IdealAssociativeScheme::period(MemReq& req) {
-    _num_hit_per_step /= 2;
-    _num_miss_per_step /= 2;
-    _mc_bw_per_step /= 2;
-    _ext_bw_per_step /= 2;
+    if (_stats_period && _num_requests % _stats_period == 0) {
+        logUtilizationStats();
+        // Reset access counts after logging
+        for (uint64_t i = 0; i < _total_lines; i++) {
+             _line_access_count[i] &= ((1ULL << 32) - 1);
+        }
+    }
+    // Handle bandwidth balance if needed
+    if (_bw_balance && _num_requests % _step_length == 0) {
+        _num_hit_per_step /= 2;
+        _num_miss_per_step /= 2;
+        _mc_bw_per_step /= 2;
+        _ext_bw_per_step /= 2;
 
-    if (_bw_balance && _mc_bw_per_step + _ext_bw_per_step > 0) {
-        // Calculate current bandwidth ratio
-        double ratio = 1.0 * _mc_bw_per_step / (_mc_bw_per_step + _ext_bw_per_step);
-        double target_ratio = 0.8;  // Target ratio (mc_bw = 4 * ext_bw)
+        if (_bw_balance && _mc_bw_per_step + _ext_bw_per_step > 0) {
+            // Calculate current bandwidth ratio
+            double ratio = 1.0 * _mc_bw_per_step / (_mc_bw_per_step + _ext_bw_per_step);
+            double target_ratio = 0.8;  // Target ratio (mc_bw = 4 * ext_bw)
 
-        // Adjust _ds_index based on bandwidth difference
-        uint64_t index_step = _num_sets / 1000;
-        int64_t delta_index = (ratio - target_ratio > -0.02 && ratio - target_ratio < 0.02) ? 0 : index_step * (ratio - target_ratio) / 0.01;
+            // Adjust _ds_index based on bandwidth difference
+            uint64_t index_step = _num_sets / 1000;
+            int64_t delta_index = (ratio - target_ratio > -0.02 && ratio - target_ratio < 0.02) ? 0 : index_step * (ratio - target_ratio) / 0.01;
 
-        printf("ratio = %f\n", ratio);
+            printf("ratio = %f\n", ratio);
 
-        if (delta_index > 0) {
-            // Handle increasing _ds_index
-            for (uint32_t mc = 0; mc < _mc->_mcdram_per_mc; mc++) {
-                for (uint64_t set = _ds_index; set < (uint64_t)(_ds_index + delta_index); set++) {
-                    if (set >= _num_sets) break;
+            if (delta_index > 0) {
+                // Handle increasing _ds_index
+                for (uint32_t mc = 0; mc < _mc->_mcdram_per_mc; mc++) {
+                    for (uint64_t set = _ds_index; set < (uint64_t)(_ds_index + delta_index); set++) {
+                        if (set >= _num_sets) break;
 
-                    for (uint32_t way = 0; way < _num_ways; way++) {
-                        Way& meta = _cache[set].ways[way];
-                        if (meta.valid && meta.dirty) {
-                            // Write back to external DRAM
-                            MESIState state;
-                            MemReq load_req = {meta.tag * 64, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-                            _mc->_mcdram[mc]->access(load_req, 2, (_granularity / 64) * 4);
-                            MemReq wb_req = {meta.tag * 64, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-                            _mc->_ext_dram->access(wb_req, 2, (_granularity / 64) * 4);
-                            _ext_bw_per_step += (_granularity / 64) * 4;
-                            _mc_bw_per_step += (_granularity / 64) * 4;
+                        for (uint32_t way = 0; way < _num_ways; way++) {
+                            Way& meta = _cache[set].ways[way];
+                            if (meta.valid && meta.dirty) {
+                                // Write back to external DRAM
+                                MESIState state;
+                                MemReq load_req = {meta.tag * 64, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+                                _mc->_mcdram[mc]->access(load_req, 2, (_granularity / 64) * 4);
+                                MemReq wb_req = {meta.tag * 64, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+                                _mc->_ext_dram->access(wb_req, 2, (_granularity / 64) * 4);
+                                _ext_bw_per_step += (_granularity / 64) * 4;
+                                _mc_bw_per_step += (_granularity / 64) * 4;
+                            }
+
+                            meta.valid = false;
+                            meta.dirty = false;
                         }
-
-                        meta.valid = false;
-                        meta.dirty = false;
                     }
                 }
             }
+            _ds_index = ((int64_t)_ds_index + delta_index <= 0) ? 0 : _ds_index + delta_index;
+            printf("_ds_index = %ld/%ld\n", _ds_index, _num_sets);
         }
-        _ds_index = ((int64_t)_ds_index + delta_index <= 0) ? 0 : _ds_index + delta_index;
-        printf("_ds_index = %ld/%ld\n", _ds_index, _num_sets);
     }
 }
 
@@ -216,5 +229,8 @@ void IdealAssociativeScheme::initStats(AggregateStat* parentStat) {
     stats->append(&_numStoreHit);
     _numStoreMiss.init("storeMiss", "Store Miss");
     stats->append(&_numStoreMiss);
+    stats->append(_numTotalLines);
+    stats->append(_numAccessedLines);
+    stats->append(_numReaccessedLines);
     parentStat->append(stats);
 }

@@ -65,6 +65,14 @@ class LineEntry {
     uint64_t way;
 };
 
+    // Track page access frequencies and mapping
+struct PageEntry {
+    uint32_t frequency;  // Access frequency counter
+    bool valid;
+    bool dirty;
+    uint64_t tag;       // Page tag
+};
+
 class TagBufferEntry {
    public:
     Address tag;

@@ -4,11 +4,11 @@
 
 uint64_t BansheeCacheScheme::access(MemReq& req) {
     ReqType type = (req.type == GETS || req.type == GETX) ? LOAD : STORE;
-	// Address address = req.lineAddr % (_ext_size / 64);
+    // Address address = req.lineAddr % (_ext_size / 64);
     Address address = req.lineAddr;
-	uint32_t mcdram_select = (address / 64) % _mc->_mcdram_per_mc;
-	Address mc_address = (address / 64 / _mc->_mcdram_per_mc * 64) | (address % 64); 
-	Address tag = address / (_granularity / 64);
+    uint32_t mcdram_select = (address / 64) % _mc->_mcdram_per_mc;
+    Address mc_address = (address / 64 / _mc->_mcdram_per_mc * 64) | (address % 64);
+    Address tag = address / (_granularity / 64);
     uint64_t set_num = tag % _num_sets;
     uint32_t hit_way = _num_ways;
     uint64_t data_ready_cycle = req.cycle;
@@ -44,6 +44,7 @@ uint64_t BansheeCacheScheme::access(MemReq& req) {
 
     if (hit_way != _num_ways) {
         // Cache hit
+        updateUtilizationStats(set_num, hit_way);
         _num_hit_per_step++;
         _page_placement_policy->handleCacheHit(tag, type, set_num, &_cache[set_num], counter_access, hit_way);
         if (type == STORE) {
@@ -151,6 +152,7 @@ uint64_t BansheeCacheScheme::access(MemReq& req) {
             _cache[set_num].ways[replace_way].tag = tag;
             _cache[set_num].ways[replace_way].dirty = (type == STORE);
             _tlb[tag].way = replace_way;
+            updateUtilizationStats(set_num, replace_way);
         } else if (type == LOAD && _tag_buffer->canInsert(tag)) {
             _tag_buffer->insert(tag, false);
         }
@@ -182,64 +184,74 @@ uint64_t BansheeCacheScheme::access(MemReq& req) {
 }
 
 void BansheeCacheScheme::period(MemReq& req) {
-    _num_hit_per_step /= 2;
-    _num_miss_per_step /= 2;
-    _mc_bw_per_step /= 2;
-    _ext_bw_per_step /= 2;
+    if (_stats_period && _num_requests % _stats_period == 0) {
+        logUtilizationStats();
+        // Reset access counts after logging
+        for (uint64_t i = 0; i < _total_lines; i++) {
+             _line_access_count[i] &= ((1ULL << 32) - 1);
+        }
+    }
+    // Handle bandwidth balance if needed
+    if (_bw_balance && _num_requests % _step_length == 0) {
+        _num_hit_per_step /= 2;
+        _num_miss_per_step /= 2;
+        _mc_bw_per_step /= 2;
+        _ext_bw_per_step /= 2;
 
-    if (_bw_balance && _mc_bw_per_step + _ext_bw_per_step > 0) {
-        // Calculate current bandwidth ratio
-        double ratio = 1.0 * _mc_bw_per_step / (_mc_bw_per_step + _ext_bw_per_step);
-        double target_ratio = 0.8;  // Target ratio (mc_bw = 4 * ext_bw)
+        if (_bw_balance && _mc_bw_per_step + _ext_bw_per_step > 0) {
+            // Calculate current bandwidth ratio
+            double ratio = 1.0 * _mc_bw_per_step / (_mc_bw_per_step + _ext_bw_per_step);
+            double target_ratio = 0.8;  // Target ratio (mc_bw = 4 * ext_bw)
 
-        // Adjust _ds_index based on bandwidth difference
-        uint64_t index_step = _num_sets / 1000;
-        int64_t delta_index = (ratio - target_ratio > -0.02 && ratio - target_ratio < 0.02) ? 0 : index_step * (ratio - target_ratio) / 0.01;
+            // Adjust _ds_index based on bandwidth difference
+            uint64_t index_step = _num_sets / 1000;
+            int64_t delta_index = (ratio - target_ratio > -0.02 && ratio - target_ratio < 0.02) ? 0 : index_step * (ratio - target_ratio) / 0.01;
 
-        printf("ratio = %f\n", ratio);
+            printf("ratio = %f\n", ratio);
 
-        if (delta_index > 0) {
-            // Handle increasing _ds_index
-            for (uint32_t mc = 0; mc < _mc->_mcdram_per_mc; mc++) {
-                for (uint64_t set = _ds_index; set < (uint64_t)(_ds_index + delta_index); set++) {
-                    if (set >= _num_sets) break;
+            if (delta_index > 0) {
+                // Handle increasing _ds_index
+                for (uint32_t mc = 0; mc < _mc->_mcdram_per_mc; mc++) {
+                    for (uint64_t set = _ds_index; set < (uint64_t)(_ds_index + delta_index); set++) {
+                        if (set >= _num_sets) break;
 
-                    for (uint32_t way = 0; way < _num_ways; way++) {
-                        Way& meta = _cache[set].ways[way];
-                        if (meta.valid && meta.dirty) {
-                            // Write back to external DRAM
-                            MESIState state;
-                            MemReq load_req = {meta.tag * 64, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-                            _mc->_mcdram[mc]->access(load_req, 2, (_granularity / 64) * 4);
-                            MemReq wb_req = {meta.tag * 64, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-                            _mc->_ext_dram->access(wb_req, 2, (_granularity / 64) * 4);
-                            _ext_bw_per_step += (_granularity / 64) * 4;
-                            _mc_bw_per_step += (_granularity / 64) * 4;
-                        }
-
-                        if (_scheme == BansheeCache && meta.valid) {
-                            _tlb[meta.tag].way = _num_ways;
-                            if (!_tag_buffer->canInsert(meta.tag)) {
-                                printf("Rebalance. [Tag Buffer FLUSH] occupancy = %f\n", _tag_buffer->getOccupancy());
-                                _tag_buffer->clearTagBuffer();
-                                _tag_buffer->setClearTime(req.cycle);
-                                _numTagBufferFlush.inc();
+                        for (uint32_t way = 0; way < _num_ways; way++) {
+                            Way& meta = _cache[set].ways[way];
+                            if (meta.valid && meta.dirty) {
+                                // Write back to external DRAM
+                                MESIState state;
+                                MemReq load_req = {meta.tag * 64, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+                                _mc->_mcdram[mc]->access(load_req, 2, (_granularity / 64) * 4);
+                                MemReq wb_req = {meta.tag * 64, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+                                _mc->_ext_dram->access(wb_req, 2, (_granularity / 64) * 4);
+                                _ext_bw_per_step += (_granularity / 64) * 4;
+                                _mc_bw_per_step += (_granularity / 64) * 4;
                             }
-                            assert(_tag_buffer->canInsert(meta.tag));
-                            _tag_buffer->insert(meta.tag, true);
-                        }
 
-                        meta.valid = false;
-                        meta.dirty = false;
-                    }
-                    if (_scheme == BansheeCache) {
-                        _page_placement_policy->flushChunk(set);
+                            if (_scheme == BansheeCache && meta.valid) {
+                                _tlb[meta.tag].way = _num_ways;
+                                if (!_tag_buffer->canInsert(meta.tag)) {
+                                    printf("Rebalance. [Tag Buffer FLUSH] occupancy = %f\n", _tag_buffer->getOccupancy());
+                                    _tag_buffer->clearTagBuffer();
+                                    _tag_buffer->setClearTime(req.cycle);
+                                    _numTagBufferFlush.inc();
+                                }
+                                assert(_tag_buffer->canInsert(meta.tag));
+                                _tag_buffer->insert(meta.tag, true);
+                            }
+
+                            meta.valid = false;
+                            meta.dirty = false;
+                        }
+                        if (_scheme == BansheeCache) {
+                            _page_placement_policy->flushChunk(set);
+                        }
                     }
                 }
             }
+            _ds_index = ((int64_t)_ds_index + delta_index <= 0) ? 0 : _ds_index + delta_index;
+            printf("_ds_index = %ld/%ld\n", _ds_index, _num_sets);
         }
-        _ds_index = ((int64_t)_ds_index + delta_index <= 0) ? 0 : _ds_index + delta_index;
-        printf("_ds_index = %ld/%ld\n", _ds_index, _num_sets);
     }
 }
 
@@ -272,6 +284,9 @@ void BansheeCacheScheme::initStats(AggregateStat* parentStat) {
     stats->append(&_numTBDirtyMiss);
     _numCounterAccess.init("counterAccess", "Counter Access");
     stats->append(&_numCounterAccess);
+    stats->append(_numTotalLines);
+    stats->append(_numAccessedLines);
+    stats->append(_numReaccessedLines);
     parentStat->append(stats);
 }
 

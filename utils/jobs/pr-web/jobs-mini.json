@@ -1,5 +1,19 @@
 [
-
+  {
+    "name": "pr-web-alloy_1G_16G",
+    "command": "./utils/run.sh benchmarks pr-web alloy_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "pr-web-alloy_2G_16G",
+    "command": "./utils/run.sh benchmarks pr-web alloy_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "pr-web-alloy_4G_16G",
+    "command": "./utils/run.sh benchmarks pr-web alloy_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
   {
     "name": "pr-web-chamo_1G_16G",
     "command": "./utils/run.sh benchmarks pr-web chamo_1G_16G",

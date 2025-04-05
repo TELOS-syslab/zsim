@@ -3,7 +3,8 @@ current_dir=$(dirname $0)
 source $current_dir/env.sh
 
 NUMCPUS=$(grep -c ^processor /proc/cpuinfo)
-buildtype=debug
+# buildtype=debug
+buildtype=opt
 if [ "$1" = "all" ]
 then
 	echo "Compiling all ..."
