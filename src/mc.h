@@ -27,12 +27,6 @@ class MemoryController : public MemObject {
     uint32_t _cur_trace_len;        // Current trace length
     uint32_t _max_trace_len;        // Maximum trace length
 	
-
-    uint64_t _num_requests;
-    bool _bw_balance;    // Bandwidth balancing flag
-    uint64_t _ds_index;  // Data structure index
-    uint32_t _num_steps;
-    uint64_t _step_length;
     g_unordered_map <Address, Address> _tlb;
     g_unordered_set <Address> _exist_pgnum;
     // std::unordered_map<Address, Address> _tlb;

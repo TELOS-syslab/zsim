@@ -43,7 +43,6 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
         futex_init(&_lock);
     }
 
-    _bw_balance = config.get<bool>("sys.mem.bwBalance", false);
     g_string scheme = config.get<const char*>("sys.mem.cache_scheme", "NoCache");
 
     // Configure external DRAM
@@ -197,12 +196,11 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
         panic("Invalid cache scheme %s", scheme.c_str());
     }
 
-    _num_steps = 0;
     uint32_t _page_size = config.get<uint32_t>("sys.mem.page_size", 4096); // 4096, 2097152
     _page_bits = log2(_page_size);
-    if (_page_bits < 6) {
+    if (_page_bits < 12) {
         panic("Page size %d is too small, must be at least 64 bytes", _page_size);
-    } else if (_page_bits > 12) {
+    } else if (_page_bits > 21) {
         panic("Page size %d is too large, must be at most 4096 bytes", _page_size);
     }
 
@@ -218,10 +216,6 @@ MemoryController::MemoryController(g_string& name, uint32_t freqMHz, uint32_t do
         ext_size = 0xFFFFFFFFFFFFFFFF;
     }
     _ext_bits = log2(ext_size);
-    _step_length = cache_size / 64 / 10;
-    info("cache_size: %lu, step_length: %lu", cache_size, _step_length);
-    _num_requests = 0;
-
     _page_map_scheme = config.get<const char*>("sys.mem.pagemap_scheme", "Identical"); // Identical, Random, Johnny, JohnnyRandom
     if (_page_map_scheme == "Johnny") {
         _johnny_ptr = 0;
@@ -290,7 +284,7 @@ Address MemoryController::mapPage(MemReq& req) {
         _exist_pgnum.insert(pgnum);
     } else 
         pgnum = _tlb[vpgnum];
-    pLineAddr = (pgnum << (_page_bits - 6)) | (vLineAddr & 0x3f);
+    pLineAddr = (pgnum << (_page_bits - 6)) | (vLineAddr & ((1UL << (_page_bits - 6)) - 1));
     // if (type == LOAD) {
     //     info("rwttpe = %d, vLineAddr = %lx, vpgnum = %lx, pgnum = %lx, pLineAddr = %lx", req.type , vLineAddr, vpgnum, pgnum, pLineAddr);
     // }
@@ -322,19 +316,14 @@ uint64_t MemoryController::access(MemReq& req) {
         handleTraceCollection(req);
     }
 
-    _num_requests++;
+    _cache_scheme->incNumRequests();
 
     // Delegate access to CacheScheme
     Address vLineAddr = req.lineAddr;
-    Address pLineAddr = mapPage(req);
-    req.lineAddr = pLineAddr;
+    req.lineAddr = mapPage(req);
     uint64_t result = _cache_scheme->access(req);
     req.lineAddr = vLineAddr;
-
-    // Handle bandwidth balance if needed
-    if (_bw_balance && _num_requests % _step_length == 0) {
-        _cache_scheme->period(req);
-    }
+    _cache_scheme->period(req);
 
     futex_unlock(&_lock);
     return result;

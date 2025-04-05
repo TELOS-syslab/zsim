@@ -7,8 +7,7 @@
 
 #include "mc.h"
 
-uint64_t CHAMOScheme::_GetBaseRank(uint64_t dram_cache_idx, uint64_t target_level_idx)
-{
+uint64_t CHAMOScheme::_GetBaseRank(uint64_t dram_cache_idx, uint64_t target_level_idx) {
     // assert(target_level_idx < dram_ratio_);
 
     // assert(target_level_idx < dram_base_rank_.size());
@@ -41,8 +40,7 @@ uint64_t CHAMOScheme::_GetBaseRank(uint64_t dram_cache_idx, uint64_t target_leve
     return base_rank;
 }
 
-uint64_t CHAMOScheme::_GetColCap(uint64_t dram_cache_idx)
-{
+uint64_t CHAMOScheme::_GetColCap(uint64_t dram_cache_idx) {
     uint64_t cap = 0;
     for (uint64_t level_idx = 0; level_idx < dram_ratio_; level_idx += 1) {
         assert(level_idx < access_bit_map_.size());
@@ -56,8 +54,7 @@ uint64_t CHAMOScheme::_GetColCap(uint64_t dram_cache_idx)
     return cap;
 }
 
-bool CHAMOScheme::CheckCuckooPath(uint64_t dram_cache_idx, uint64_t& cuckoo_path_len)
-{
+bool CHAMOScheme::CheckCuckooPath(uint64_t dram_cache_idx, uint64_t& cuckoo_path_len) {
     cuckoo_path_len = 0;
 
     // 判断cuckoo_path上是否已经存在超过tolerate的情况
@@ -80,8 +77,7 @@ bool CHAMOScheme::CheckCuckooPath(uint64_t dram_cache_idx, uint64_t& cuckoo_path
     return false;
 }
 
-void CHAMOScheme::UpdateCUckooPath(uint64_t dram_cache_idx, uint64_t cuckoo_path_len)
-{
+void CHAMOScheme::UpdateCUckooPath(uint64_t dram_cache_idx, uint64_t cuckoo_path_len) {
     for (uint64_t idx = 1; idx <= cuckoo_path_len; idx += 1) {
         uint64_t col_idx = (dram_cache_idx + idx) % nr_dram_cache_;
         assert(col_idx < dram_overflow_rank_.size());
@@ -91,23 +87,20 @@ void CHAMOScheme::UpdateCUckooPath(uint64_t dram_cache_idx, uint64_t cuckoo_path
     }
 }
 
-uint64_t CHAMOScheme::_GetOverflowRank(uint64_t dram_cache_idx, uint64_t target_level_idx)
-{
+uint64_t CHAMOScheme::_GetOverflowRank(uint64_t dram_cache_idx, uint64_t target_level_idx) {
     assert(dram_cache_idx < dram_overflow_rank_.size());
     uint64_t overflow_rank = dram_overflow_rank_[dram_cache_idx];
     assert(overflow_rank <= nr_map_limit_);
     return overflow_rank;
 }
 
-uint64_t CHAMOScheme::_GetSelfContainRank(uint64_t dram_cache_idx)
-{
+uint64_t CHAMOScheme::_GetSelfContainRank(uint64_t dram_cache_idx) {
     assert(dram_cache_idx < dram_self_contain_rank_.size());
     assert(dram_self_contain_rank_[dram_cache_idx] <= nr_map_limit_);
-    return dram_self_contain_rank_[dram_cache_idx];   
+    return dram_self_contain_rank_[dram_cache_idx];
 }
 
-void CHAMOScheme::_UpdateMapLimit(void)
-{
+void CHAMOScheme::_UpdateMapLimit(void) {
     // 更新nr_map_limit_
     nr_map_limit_ = (((hash_metric_.nr_cuckoo_cnt_ * 100 / load_ratio_) + nr_dram_cache_ - 1) / nr_dram_cache_);
     assert(nr_map_limit_ <= dram_ratio_ + 1);
@@ -117,14 +110,13 @@ void CHAMOScheme::_UpdateMapLimit(void)
     assert(nr_map_limit_ < dram_ratio_);
 }
 
-uint64_t CHAMOScheme::_HashIdxToAddr(uint64_t line_addr_in_level, uint64_t level_idx, uint64_t hash_idx)
-{
+uint64_t CHAMOScheme::_HashIdxToAddr(uint64_t line_addr_in_level, uint64_t level_idx, uint64_t hash_idx) {
     uint64_t target_addr = 0;
     assert(level_idx < is_cuckoo_hash_.size());
     assert(line_addr_in_level < is_cuckoo_hash_[level_idx].size());
     if (hash_idx == 0 || hash_idx == 1) {
         // 使用cuckoo hash
-        //assert(is_cuckoo_hash_[level_idx][line_addr_in_level]);
+        // assert(is_cuckoo_hash_[level_idx][line_addr_in_level]);
 
         // 更新cuckoo成功映射的函数 (这里主要是更新nr_map_limit更新后没计入的cuckoo_cnt)
         if (!is_cuckoo_hash_[level_idx][line_addr_in_level]) {
@@ -165,8 +157,7 @@ uint64_t CHAMOScheme::_HashIdxToAddr(uint64_t line_addr_in_level, uint64_t level
 }
 
 uint64_t CHAMOScheme::_RankToAddr(uint64_t base_rank, uint64_t overflow_rank,
-    uint64_t self_contain_rank, uint64_t line_addr_in_level, uint64_t level_idx)
-{
+                                  uint64_t self_contain_rank, uint64_t line_addr_in_level, uint64_t level_idx) {
     uint8_t target_hash_idx = (uint8_t)-1;
     uint64_t target_addr = 0;
     uint64_t next_col_idx = (line_addr_in_level + 1) % nr_dram_cache_;
@@ -185,7 +176,7 @@ uint64_t CHAMOScheme::_RankToAddr(uint64_t base_rank, uint64_t overflow_rank,
         // 能够映射到当前列
         target_hash_idx = 0;
         assert(base_rank - dram_overflow_rank_[next_col_idx] <= dram_self_contain_rank_[line_addr_in_level]);
-        assert((base_rank - dram_overflow_rank_[next_col_idx]) + dram_overflow_rank_[line_addr_in_level]<= nr_map_limit_);
+        assert((base_rank - dram_overflow_rank_[next_col_idx]) + dram_overflow_rank_[line_addr_in_level] <= nr_map_limit_);
     } else {
         // 无法映射
         target_hash_idx = 2;
@@ -199,8 +190,7 @@ uint64_t CHAMOScheme::_RankToAddr(uint64_t base_rank, uint64_t overflow_rank,
 }
 
 // target_rank_idx: 1->n
-uint64_t CHAMOScheme::CalculateRankToAddr(uint64_t dram_cache_idx, uint64_t target_level_idx)
-{
+uint64_t CHAMOScheme::CalculateRankToAddr(uint64_t dram_cache_idx, uint64_t target_level_idx) {
     // 更新nr_map_limit_
     _UpdateMapLimit();
 
@@ -213,18 +203,16 @@ uint64_t CHAMOScheme::CalculateRankToAddr(uint64_t dram_cache_idx, uint64_t targ
     return _RankToAddr(base_rank, overflow_rank, sefl_contain_rank, dram_cache_idx, target_level_idx);
 }
 
-uint64_t CHAMOScheme::GetAlterCxlLineAddr(uint64_t phy_cache_addr)
-{   
+uint64_t CHAMOScheme::GetAlterCxlLineAddr(uint64_t phy_cache_addr) {
     uint64_t shuffle_line_addr = lcg_.LCG_hash(phy_cache_addr, 0);
     assert(shuffle_line_addr < nr_cxl_cache_);
 
     return shuffle_line_addr;
 
-    //return phy_cache_addr;
+    // return phy_cache_addr;
 }
 
-void CHAMOScheme::UpdateMappingInfo(uint64_t dram_cache_idx, uint64_t level_idx)
-{
+void CHAMOScheme::UpdateMappingInfo(uint64_t dram_cache_idx, uint64_t level_idx) {
     assert(level_idx < is_cuckoo_hash_.size());
     assert(dram_cache_idx < is_cuckoo_hash_[level_idx].size());
     assert(!is_cuckoo_hash_[level_idx][dram_cache_idx]);
@@ -256,15 +244,13 @@ void CHAMOScheme::UpdateMappingInfo(uint64_t dram_cache_idx, uint64_t level_idx)
         hash_metric_.nr_cuckoo_cnt_ += 1;
 
         return;
-    } 
+    }
 
     // 无法插入
     return;
 }
 
-uint64_t CHAMOScheme::Index(uint64_t cache_addr)
-{
-
+uint64_t CHAMOScheme::Index(uint64_t cache_addr) {
     uint64_t phy_line_addr = lcg_.LCG_hash(cache_addr, 0);
     assert(phy_line_addr < nr_cxl_cache_);
 
@@ -282,8 +268,8 @@ uint64_t CHAMOScheme::Index(uint64_t cache_addr)
         assert(line_offset_in_level < dram_base_rank_[cxl_level].size());
         assert(dram_base_rank_[cxl_level][line_offset_in_level] == 0);
         dram_base_rank_[cxl_level][line_offset_in_level] = _GetColCap(line_offset_in_level) + 1;
-        assert(dram_base_rank_[cxl_level][line_offset_in_level] > 0 && 
-            dram_base_rank_[cxl_level][line_offset_in_level] <= dram_ratio_);
+        assert(dram_base_rank_[cxl_level][line_offset_in_level] > 0 &&
+               dram_base_rank_[cxl_level][line_offset_in_level] <= dram_ratio_);
 
         access_bit_map_[cxl_level][line_offset_in_level] = true;
         hash_metric_.nr_touched_cnt_ += 1;
@@ -292,7 +278,6 @@ uint64_t CHAMOScheme::Index(uint64_t cache_addr)
         assert(dram_base_rank_[cxl_level][line_offset_in_level] == _GetColCap(line_offset_in_level));
 
         UpdateMappingInfo(line_offset_in_level, cxl_level);
-
     }
 
     uint64_t target_dram_line_addr = CalculateRankToAddr(line_offset_in_level, cxl_level);
@@ -313,7 +298,7 @@ uint64_t CHAMOScheme::access(MemReq& req) {
     assert(mc_address < _cache_size / 64);
     assert(address < _ext_size / 64);
 
-    //info("RW:%d, lineAddr = 0x%lx, phy_addr = 0x%lx, cache_addr = 0x%lx, set_num = %ld, tag = 0x%lx\n", type, req.lineAddr, address, mc_address, set_num, tag);
+    // info("RW:%d, lineAddr = 0x%lx, phy_addr = 0x%lx, cache_addr = 0x%lx, set_num = %ld, tag = 0x%lx\n", type, req.lineAddr, address, mc_address, set_num, tag);
 
     // Check for cache hit
     uint32_t hit_way = 0;
@@ -337,6 +322,7 @@ uint64_t CHAMOScheme::access(MemReq& req) {
 
         if (hit_way < _num_ways) {
             // Cache hit
+            updateUtilizationStats(set_num, hit_way);
             _num_hit_per_step++;
             _numLoadHit.inc();
             data_ready_cycle = req.cycle;  // Data available after cache latency
@@ -349,7 +335,6 @@ uint64_t CHAMOScheme::access(MemReq& req) {
             MemReq main_memory_req = {address, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
             data_ready_cycle = _mc->_ext_dram->access(main_memory_req, 1, 4);
             _ext_bw_per_step += 4;
-
 
             // Handle eviction if victim is dirty
             if (_cache[set_num].ways[victim_way].valid && _cache[set_num].ways[victim_way].dirty) {
@@ -366,6 +351,7 @@ uint64_t CHAMOScheme::access(MemReq& req) {
             _cache[set_num].ways[victim_way].tag = tag;
             _cache[set_num].ways[victim_way].valid = true;
             _cache[set_num].ways[victim_way].dirty = false;  // LOAD: line is clean
+            updateUtilizationStats(set_num, victim_way);
         }
     } else {  // STORE
         // Simulate cache write access
@@ -375,6 +361,7 @@ uint64_t CHAMOScheme::access(MemReq& req) {
 
         if (hit_way < _num_ways) {
             // Write hit
+            updateUtilizationStats(set_num, hit_way);
             _num_hit_per_step++;
             _numStoreHit.inc();
             _cache[set_num].ways[hit_way].dirty = true;
@@ -399,6 +386,7 @@ uint64_t CHAMOScheme::access(MemReq& req) {
             _cache[set_num].ways[victim_way].valid = true;
             _cache[set_num].ways[victim_way].dirty = true;  // STORE: mark as dirty
             data_ready_cycle = req.cycle;
+            updateUtilizationStats(set_num, victim_way);
         }
     }
 
@@ -406,49 +394,59 @@ uint64_t CHAMOScheme::access(MemReq& req) {
 }
 
 void CHAMOScheme::period(MemReq& req) {
-    _num_hit_per_step /= 2;
-    _num_miss_per_step /= 2;
-    _mc_bw_per_step /= 2;
-    _ext_bw_per_step /= 2;
+    if (_stats_period && _num_requests % _stats_period == 0) {
+        logUtilizationStats();
+        // Reset access counts after logging
+        for (uint64_t i = 0; i < _total_lines; i++) {
+             _line_access_count[i] &= ((1ULL << 32) - 1);
+        }
+    }
+    // Handle bandwidth balance if needed
+    if (_bw_balance && _num_requests % _step_length == 0) {
+        _num_hit_per_step /= 2;
+        _num_miss_per_step /= 2;
+        _mc_bw_per_step /= 2;
+        _ext_bw_per_step /= 2;
 
-    if (_bw_balance && _mc_bw_per_step + _ext_bw_per_step > 0) {
-        // Calculate current bandwidth ratio
-        double ratio = 1.0 * _mc_bw_per_step / (_mc_bw_per_step + _ext_bw_per_step);
-        double target_ratio = 0.8;  // Target ratio (mc_bw = 4 * ext_bw)
+        if (_bw_balance && _mc_bw_per_step + _ext_bw_per_step > 0) {
+            // Calculate current bandwidth ratio
+            double ratio = 1.0 * _mc_bw_per_step / (_mc_bw_per_step + _ext_bw_per_step);
+            double target_ratio = 0.8;  // Target ratio (mc_bw = 4 * ext_bw)
 
-        // Adjust _ds_index based on bandwidth difference
-        uint64_t index_step = _num_sets / 1000;
-        int64_t delta_index = (ratio - target_ratio > -0.02 && ratio - target_ratio < 0.02) ? 0 : index_step * (ratio - target_ratio) / 0.01;
+            // Adjust _ds_index based on bandwidth difference
+            uint64_t index_step = _num_sets / 1000;
+            int64_t delta_index = (ratio - target_ratio > -0.02 && ratio - target_ratio < 0.02) ? 0 : index_step * (ratio - target_ratio) / 0.01;
 
-        printf("ratio = %f\n", ratio);
+            printf("ratio = %f\n", ratio);
 
-        if (delta_index > 0) {
-            // Handle increasing _ds_index
-            for (uint32_t mc = 0; mc < _mc->_mcdram_per_mc; mc++) {
-                for (uint64_t set = _ds_index; set < (uint64_t)(_ds_index + delta_index); set++) {
-                    if (set >= _num_sets) break;
+            if (delta_index > 0) {
+                // Handle increasing _ds_index
+                for (uint32_t mc = 0; mc < _mc->_mcdram_per_mc; mc++) {
+                    for (uint64_t set = _ds_index; set < (uint64_t)(_ds_index + delta_index); set++) {
+                        if (set >= _num_sets) break;
 
-                    for (uint32_t way = 0; way < _num_ways; way++) {
-                        Way& meta = _cache[set].ways[way];
-                        if (meta.valid && meta.dirty) {
-                            // Write back to external DRAM
-                            MESIState state;
-                            MemReq load_req = {meta.tag * 64, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-                            _mc->_mcdram[mc]->access(load_req, 2, (_granularity / 64) * 4);
-                            MemReq wb_req = {meta.tag * 64, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-                            _mc->_ext_dram->access(wb_req, 2, (_granularity / 64) * 4);
-                            _ext_bw_per_step += (_granularity / 64) * 4;
-                            _mc_bw_per_step += (_granularity / 64) * 4;
+                        for (uint32_t way = 0; way < _num_ways; way++) {
+                            Way& meta = _cache[set].ways[way];
+                            if (meta.valid && meta.dirty) {
+                                // Write back to external DRAM
+                                MESIState state;
+                                MemReq load_req = {meta.tag * 64, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+                                _mc->_mcdram[mc]->access(load_req, 2, (_granularity / 64) * 4);
+                                MemReq wb_req = {meta.tag * 64, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+                                _mc->_ext_dram->access(wb_req, 2, (_granularity / 64) * 4);
+                                _ext_bw_per_step += (_granularity / 64) * 4;
+                                _mc_bw_per_step += (_granularity / 64) * 4;
+                            }
+
+                            meta.valid = false;
+                            meta.dirty = false;
                         }
-
-                        meta.valid = false;
-                        meta.dirty = false;
                     }
                 }
             }
+            _ds_index = ((int64_t)_ds_index + delta_index <= 0) ? 0 : _ds_index + delta_index;
+            printf("_ds_index = %ld/%ld\n", _ds_index, _num_sets);
         }
-        _ds_index = ((int64_t)_ds_index + delta_index <= 0) ? 0 : _ds_index + delta_index;
-        printf("_ds_index = %ld/%ld\n", _ds_index, _num_sets);
     }
 }
 
@@ -467,5 +465,8 @@ void CHAMOScheme::initStats(AggregateStat* parentStat) {
     stats->append(&_numStoreHit);
     _numStoreMiss.init("storeMiss", "Store Miss");
     stats->append(&_numStoreMiss);
+    stats->append(_numTotalLines);
+    stats->append(_numAccessedLines);
+    stats->append(_numReaccessedLines);
     parentStat->append(stats);
 }
