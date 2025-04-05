@@ -7,12 +7,12 @@ if [ -z "$ZSIMPATH" ]; then
 fi
 cd $ZSIMPATH
 
-FROM=42
-TO=42
+FROM=39
+TO=49
 WINDOW_SIZE=100
 STEP=100
 USE_H5=true
-TARGET="ipc" # hit, ipc, or all
+TARGET="all" # hit, ipc, or all
 VERBOSE=true
 if [ "$USE_H5" == "true" ]; then
     WINDOW_SIZE=$((WINDOW_SIZE * 10))
@@ -80,12 +80,12 @@ export -f process_stat  # Export the function for parallel execution
 for pattern in `seq $FROM $TO`; do
     echo "Processing pattern: ${pattern}*"
     # Find all matching directories and process them in parallel
-    find output/collect/${pattern}*/*[\[\]]* -type d | \
+    find output/results/${pattern}*/*[\[\]]* -type d | \
         xargs -P 16 -I DIR bash -c "process_stat DIR \"$USE_H5\" \"$TARGET\" \"$WINDOW_SIZE\" \"$STEP\" \"$VERBOSE\""
     echo "========================================"
 
     # Combine results for this pattern - process each matching directory separately
-    for dir in output/collect/${pattern}*; do
+    for dir in output/results/${pattern}*; do
         if [ -d "$dir" ]; then
             ./utils/parse/parse_stats_instr.py "$dir" -t combine
         fi

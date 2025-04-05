@@ -15,11 +15,6 @@
     "working_dir": "~/chunk/git/git-own/zsim/"
   },
   {
-    "name": "cc-web-idealassociative_4G_16G",
-    "command": "./utils/run.sh benchmarks cc-web idealassociative_4G_16G",
-    "working_dir": "~/chunk/git/git-own/zsim/"
-  },
-  {
     "name": "cc-web-idealbalanced_1G_16G",
     "command": "./utils/run.sh benchmarks cc-web idealbalanced_1G_16G",
     "working_dir": "~/chunk/git/git-own/zsim/"

@@ -23,7 +23,7 @@ class NDCScheme : public CacheScheme {
 
     // Mask parameters for address translation
     uint64_t _index_mask, _cache_tag_mask, _pred_tag_mask;
-    uint32_t _index_bits, _cache_tag_bits, _pred_tag_bits;
+    uint32_t _index_bits, _cache_tag_bits, _pred_tag_bits, _cache_lines_bits;
 
     // Maximum possible address bits after removing cacheline offset bits
     static const uint32_t MAX_ADDR_BITS = 58;  // 64 - 6 bits for cache line offset
@@ -52,9 +52,10 @@ class NDCScheme : public CacheScheme {
         // Calculate number of tag bits based on number of ways
         _cache_tag_bits = ceil(log2(_num_ways));
         _index_bits = ceil(log2(_num_sets));
-        assert_msg(_cache_bits == _cache_tag_bits + _index_bits + _shift_bits, "cache_bits: %d, cache_tag_bits: %d, index_bits: %d", _cache_bits, _cache_tag_bits, _index_bits);
+        _cache_lines_bits = _cache_bits - _shift_bits;
+        assert_msg(_cache_lines_bits == _cache_tag_bits + _index_bits, "cache_bits: %d, cache_tag_bits: %d, index_bits: %d", _cache_bits, _cache_tag_bits, _index_bits);
         _pred_tag_bits = _ext_bits - _cache_bits;
-        _pred_tag_mask = ((1ULL << _pred_tag_bits) - 1) << _cache_bits;
+        _pred_tag_mask = ((1ULL << _pred_tag_bits) - 1) << _cache_lines_bits;
         assert(_cache_bits <= _ext_bits);
         assert(_cache_tag_bits <= _co_mask + 1);
 
@@ -82,14 +83,14 @@ class NDCScheme : public CacheScheme {
         }
 
         // Calculate tag mask as the inverse of index mask (within valid address bits)
-        _cache_tag_mask = ~_index_mask & ((1ULL << _cache_bits) - 1);
+        _cache_tag_mask = ~_index_mask & ((1ULL << _cache_lines_bits) - 1);
 
         // Create string representations of the masks
         std::string index_mask_str = "";
         std::string tag_mask_str = "";
 
         // Build binary strings from MSB to LSB
-        for (int i = _cache_bits - 1; i >= 0; i--) {
+        for (int i = _cache_lines_bits - 1; i >= 0; i--) {
             index_mask_str += ((_index_mask >> i) & 1) ? '1' : '0';
             tag_mask_str += ((_cache_tag_mask >> i) & 1) ? '1' : '0';
 
@@ -137,7 +138,7 @@ class NDCScheme : public CacheScheme {
         }
 
         // Extract tag bits using direct bit manipulation
-        for (int i = first_tag_bit; i < _cache_bits && bit_pos < _cache_tag_bits; i++) {
+        for (int i = first_tag_bit; i < _cache_lines_bits && bit_pos < _cache_tag_bits; i++) {
             if (_cache_tag_mask & (1ULL << i)) {
                 // Extract this bit directly - no conditional
                 tag_value |= ((hex_addr >> i) & 1) << bit_pos;
@@ -160,7 +161,7 @@ class NDCScheme : public CacheScheme {
         }
 
         // Extract index bits using direct bit manipulation
-        for (int i = first_index_bit; i < _cache_bits && bit_pos < _index_bits; i++) {
+        for (int i = first_index_bit; i < _cache_lines_bits && bit_pos < _index_bits; i++) {
             if (_index_mask & (1ULL << i)) {
                 // Extract this bit directly
                 index_value |= ((hex_addr >> i) & 1) << bit_pos;
@@ -170,7 +171,7 @@ class NDCScheme : public CacheScheme {
 
         // Place index bits in non-tag positions
         bit_pos = 0;
-        for (int i = 0; i < _cache_bits && bit_pos < _index_bits; i++) {
+        for (int i = 0; i < _cache_lines_bits && bit_pos < _index_bits; i++) {
             // Skip the tag positions
             if (i >= _co_pos && i < (_co_pos + _cache_tag_bits)) {
                 continue;
@@ -191,7 +192,7 @@ class NDCScheme : public CacheScheme {
         uint64_t bit_pos = 0;
 
         // Place bits directly using shifts and masks
-        for (int i = 0; i < _cache_bits && bit_pos < _index_bits; i++) {
+        for (int i = 0; i < _cache_lines_bits && bit_pos < _index_bits; i++) {
             // Skip tag positions
             if (i >= _co_pos && i < (_co_pos + _cache_tag_bits)) {
                 continue;

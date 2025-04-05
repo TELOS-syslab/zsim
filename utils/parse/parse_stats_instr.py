@@ -199,6 +199,133 @@ def parse_zsim_text(file_path: str) -> List[Dict[str, Any]]:
     return result
 
 
+def find_cache_paths(data: List[Dict[str, Any]], base_path: str = "root.mem.mem-0") -> List[str]:
+    """Find all cache paths under the given base path."""
+    if not data:
+        return []
+    
+    for period in data:
+        if not period:
+            continue
+            
+        debug_print(f"Examining period data: {period.keys()}")
+        
+        current = period['root']
+        debug_print(f"Looking in structure: {current.keys()}")
+        
+        for cache_type in ['mem']:
+            if cache_type in current:
+                debug_print(f"Found standard mem: {cache_type}")
+                cache_data = current[cache_type]
+                if isinstance(cache_data, dict) and any(x in cache_data for x in ['loadHit', 'loadMiss', 'storeHit', 'storeMiss']):
+                    return [cache_type]
+        
+        try:
+            search_path = base_path
+            paths_to_try = [
+                search_path,
+                search_path.replace('mem.mem-0', 'mem-0'),
+                'root.mem.mem-0',
+                'root.mem-0',
+                'root.mem'
+            ]
+            
+            debug_print(f"Trying paths: {paths_to_try}")
+            
+            for try_path in paths_to_try:
+                try_current = period
+                path_parts = try_path.split('.')
+                
+                valid_path = True
+                for part in path_parts:
+                    if part in try_current:
+                        try_current = try_current[part]
+                    else:
+                        valid_path = False
+                        break
+                
+                if valid_path and isinstance(try_current, dict):
+                    for key, value in try_current.items():
+                        if isinstance(value, dict):
+                            if any(all(stat in value for stat in stats) for stats in [
+                                ['loadHit', 'loadMiss'],
+                                ['hits', 'misses'],
+                                ['hGETS', 'hGETX'],
+                                ['cleanEvict', 'dirtyEvict']
+                            ]):
+                                cache_path = f"{try_path}.{key}"
+                                debug_print(f"Found cache at: {cache_path}")
+                                return [cache_path]
+                
+        except (KeyError, AttributeError) as e:
+            debug_print(f"Error while searching path: {e}")
+            continue
+    
+    debug_print("No cache paths found in any period")
+    return []
+
+
+def find_core_paths(data: List[Dict[str, Any]], use_h5: bool = False) -> List[str]:
+    """Find all core paths that have cycles, cCycles, and instrs stats."""
+    if not data:
+        return []
+    
+    core_paths = set()  # Use set to avoid duplicates
+    required_stats = {'cycles', 'cCycles', 'instrs'}
+    
+    if use_h5:
+        # Handle HDF5 format - data structure is flatter
+        for period in data:
+            if not period or 'root' not in period:
+                continue
+                
+            root = period['root']
+            # Scan all fields directly under root looking for core stats
+            for key, value in root.items():
+                # Check if this is a structured array or dict containing core stats
+                if isinstance(value, (list, np.ndarray, dict)):
+                    # For numpy arrays, check field names
+                    if hasattr(value, 'dtype') and hasattr(value.dtype, 'names'):
+                        if all(stat in value.dtype.names for stat in required_stats):
+                            core_paths.add(f"root.{key}")
+                    # For dictionaries, check keys directly
+                    elif isinstance(value, dict):
+                        if all(stat in value for stat in required_stats):
+                            core_paths.add(f"root.{key}")
+    else:
+        def search_dict(d: Dict[str, Any], current_path: str):
+            if not isinstance(d, dict):
+                return
+                
+            for key, value in d.items():
+                if not isinstance(value, dict):
+                    continue
+                    
+                new_path = f"{current_path}.{key}" if current_path else key
+                
+                # Check if this is a core stats section
+                if ('cycles' in value and 'cCycles' in value and 'instrs' in value) or \
+                any(comment.strip() == '# Core stats' for comment in str(value).split('\n')):
+                    core_paths.add(new_path)
+                else:
+                    search_dict(value, new_path)
+        
+        # Try each period until we find all core paths
+        for period in data:
+            if not period:  # Skip empty periods
+                continue
+                
+            try:
+                # Start search from root
+                search_dict(period['root'], "root")
+                if core_paths:  # If we found any paths, keep searching for more
+                    continue
+            except (KeyError, AttributeError):
+                continue  # Try next period if any error occurs
+
+    return sorted(list(core_paths))  # Return sorted list of unique paths
+
+
 def get_multiple_values(data: List[Dict[str, Any]], paths: List[str]) -> Dict[str, List[Any]]:
     """
     Efficiently extract multiple values from parsed data in a single pass.
@@ -248,32 +375,51 @@ def get_value_by_path(data: Dict[str, Any], path: str) -> Union[int, float, str,
     return current
 
 
-def get_stats_series(file_path: str, target_path: str) -> List[Union[int, float, str, None]]:
-    """Extract a series of values for a specific statistic across all periods."""
-    periods = parse_zsim_output(file_path)
-    return [get_value_by_path(period, target_path) for period in periods]
-
-
-def calculate_average(values: List[Union[int, float]], start_idx: int = 0, end_idx: int = None) -> float:
-    """Calculate the average of values in the specified range."""
-    if end_idx is None:
-        end_idx = len(values)
+def get_total_instructions(data: List[Dict[str, Any]], use_h5: bool = False) -> np.ndarray:
+    """Calculate cumulative total instructions across all cores for each period using numpy."""
+    if not data:
+        return np.array([])
     
-    # Use NumPy for efficient calculation if available
-    if 'np' in globals():
-        # Convert to numpy array and filter out None values
-        valid_values = np.array([v for v in values[start_idx:end_idx] 
-                                if v is not None and isinstance(v, (int, float))])
-        if len(valid_values) == 0:
-            return None
-        return float(np.mean(valid_values))
+    # Find all core paths first
+    core_paths = find_core_paths(data, use_h5=use_h5)
+    if not core_paths:
+        return np.array([])
+    
+    # Create paths for instruction counts
+    instr_paths = [f"{core_path}.instrs" for core_path in core_paths]
+    
+    # Get instruction values for all cores
+    extracted_values = get_multiple_values(data, instr_paths)
+    
+    # Convert to numpy array and handle None values
+    instr_arrays = []
+    
+    if use_h5:
+        # For H5 format, reorganize data from [periods][cores] to [cores][periods]
+        num_periods = len(data)
+        num_cores = len(extracted_values[instr_paths[0]][0]) if extracted_values[instr_paths[0]] else 0
+        
+        for core_idx in range(num_cores):
+            # Collect all periods for this core
+            core_values = []
+            for period in range(num_periods):
+                val = extracted_values[instr_paths[0]][period][core_idx]
+                core_values.append(float(val) if val is not None else np.nan)
+            instr_arrays.append(np.array(core_values))
     else:
-        # Fallback to Python implementation
-        numeric_values = [v for v in values[start_idx:end_idx]
-                        if v is not None and isinstance(v, (int, float))]
-        if not numeric_values:
-            return None
-        return sum(numeric_values) / len(numeric_values)
+        # Original handling for text format - already in [cores][periods] format
+        for path in instr_paths:
+            values = extracted_values[path]
+            arr = np.array([float(v) if v is not None else np.nan for v in values])
+            instr_arrays.append(arr)
+    
+    # Stack arrays and sum across cores
+    if instr_arrays:
+        stacked = np.vstack(instr_arrays)
+        total_instrs = np.nansum(stacked, axis=0)
+        return total_instrs
+    
+    return np.array([])
 
 
 def calculate_cache_rate_trend(hits: List[Union[int, float, None]],
@@ -480,41 +626,6 @@ def calculate_ipc(file_path: str, base_path: str, window_size: int = 1, step: in
     return ipc_data, overall_ipc.tolist(), x_values.tolist(), rate_type
 
 
-def smooth_values_numpy(values, window_size):
-    """Apply a moving average smoothing to a list of values using NumPy."""
-    if 'np' not in globals():
-        return smooth_values(values, window_size)
-    
-    # Convert to numpy array, replacing None with NaN
-    arr = np.array([float(v) if v is not None else np.nan for v in values])
-    result = np.full_like(arr, np.nan)
-    
-    for i in range(len(arr)):
-        window_start = max(0, i - window_size + 1)
-        window = arr[window_start:i+1]
-        # Use numpy's nanmean to handle NaN values
-        if not np.all(np.isnan(window)):
-            result[i] = np.nanmean(window)
-    
-    # Convert back to Python list, replacing NaN with None
-    return [float(x) if not np.isnan(x) else None for x in result]
-
-
-def smooth_values(values, window_size):
-    """Apply a moving average smoothing to a list of values."""
-    result = []
-    for i in range(len(values)):
-        window_start = max(0, i - window_size + 1)
-        window = values[window_start:i+1]
-        # Filter out None values
-        valid_window = [v for v in window if v is not None]
-        if valid_window:
-            result.append(sum(valid_window) / len(valid_window))
-        else:
-            result.append(None)
-    return result
-
-
 def get_output_name(zsim_dir: str, cache_name: str = None, stat_type: str = None, 
                    window_size: int = 1, step: int = 1) -> str:
     """
@@ -589,53 +700,6 @@ def save_plot_data(data_dict: Dict, output_filename: str, plot_path: str):
     """Save plot data alongside the plot image."""
     data_path = os.path.join(plot_path, output_filename.replace('.png', '.npz'))
     np.savez(data_path, **data_dict)
-
-
-def get_total_instructions(data: List[Dict[str, Any]], use_h5: bool = False) -> np.ndarray:
-    """Calculate cumulative total instructions across all cores for each period using numpy."""
-    if not data:
-        return np.array([])
-    
-    # Find all core paths first
-    core_paths = find_core_paths(data, use_h5=use_h5)
-    if not core_paths:
-        return np.array([])
-    
-    # Create paths for instruction counts
-    instr_paths = [f"{core_path}.instrs" for core_path in core_paths]
-    
-    # Get instruction values for all cores
-    extracted_values = get_multiple_values(data, instr_paths)
-    
-    # Convert to numpy array and handle None values
-    instr_arrays = []
-    
-    if use_h5:
-        # For H5 format, reorganize data from [periods][cores] to [cores][periods]
-        num_periods = len(data)
-        num_cores = len(extracted_values[instr_paths[0]][0]) if extracted_values[instr_paths[0]] else 0
-        
-        for core_idx in range(num_cores):
-            # Collect all periods for this core
-            core_values = []
-            for period in range(num_periods):
-                val = extracted_values[instr_paths[0]][period][core_idx]
-                core_values.append(float(val) if val is not None else np.nan)
-            instr_arrays.append(np.array(core_values))
-    else:
-        # Original handling for text format - already in [cores][periods] format
-        for path in instr_paths:
-            values = extracted_values[path]
-            arr = np.array([float(v) if v is not None else np.nan for v in values])
-            instr_arrays.append(arr)
-    
-    # Stack arrays and sum across cores
-    if instr_arrays:
-        stacked = np.vstack(instr_arrays)
-        total_instrs = np.nansum(stacked, axis=0)
-        return total_instrs
-    
-    return np.array([])
 
 
 def plot_cache_rate_trend(read_hit_rates: List[float], read_miss_rates: List[float], 
@@ -755,133 +819,6 @@ def plot_ipc_trend(ipc_data, overall_ipc, zsim_dir, window_size, step, plot_path
         
     except Exception as e:
         print(f"Error creating IPC plot: {e}")
-
-
-def find_cache_paths(data: List[Dict[str, Any]], base_path: str = "root.mem.mem-0") -> List[str]:
-    """Find all cache paths under the given base path."""
-    if not data:
-        return []
-    
-    for period in data:
-        if not period:
-            continue
-            
-        debug_print(f"Examining period data: {period.keys()}")
-        
-        current = period['root']
-        debug_print(f"Looking in structure: {current.keys()}")
-        
-        for cache_type in ['mem']:
-            if cache_type in current:
-                debug_print(f"Found standard mem: {cache_type}")
-                cache_data = current[cache_type]
-                if isinstance(cache_data, dict) and any(x in cache_data for x in ['loadHit', 'loadMiss', 'storeHit', 'storeMiss']):
-                    return [cache_type]
-        
-        try:
-            search_path = base_path
-            paths_to_try = [
-                search_path,
-                search_path.replace('mem.mem-0', 'mem-0'),
-                'root.mem.mem-0',
-                'root.mem-0',
-                'root.mem'
-            ]
-            
-            debug_print(f"Trying paths: {paths_to_try}")
-            
-            for try_path in paths_to_try:
-                try_current = period
-                path_parts = try_path.split('.')
-                
-                valid_path = True
-                for part in path_parts:
-                    if part in try_current:
-                        try_current = try_current[part]
-                    else:
-                        valid_path = False
-                        break
-                
-                if valid_path and isinstance(try_current, dict):
-                    for key, value in try_current.items():
-                        if isinstance(value, dict):
-                            if any(all(stat in value for stat in stats) for stats in [
-                                ['loadHit', 'loadMiss'],
-                                ['hits', 'misses'],
-                                ['hGETS', 'hGETX'],
-                                ['cleanEvict', 'dirtyEvict']
-                            ]):
-                                cache_path = f"{try_path}.{key}"
-                                debug_print(f"Found cache at: {cache_path}")
-                                return [cache_path]
-                
-        except (KeyError, AttributeError) as e:
-            debug_print(f"Error while searching path: {e}")
-            continue
-    
-    debug_print("No cache paths found in any period")
-    return []
-
-
-def find_core_paths(data: List[Dict[str, Any]], use_h5: bool = False) -> List[str]:
-    """Find all core paths that have cycles, cCycles, and instrs stats."""
-    if not data:
-        return []
-    
-    core_paths = set()  # Use set to avoid duplicates
-    required_stats = {'cycles', 'cCycles', 'instrs'}
-    
-    if use_h5:
-        # Handle HDF5 format - data structure is flatter
-        for period in data:
-            if not period or 'root' not in period:
-                continue
-                
-            root = period['root']
-            # Scan all fields directly under root looking for core stats
-            for key, value in root.items():
-                # Check if this is a structured array or dict containing core stats
-                if isinstance(value, (list, np.ndarray, dict)):
-                    # For numpy arrays, check field names
-                    if hasattr(value, 'dtype') and hasattr(value.dtype, 'names'):
-                        if all(stat in value.dtype.names for stat in required_stats):
-                            core_paths.add(f"root.{key}")
-                    # For dictionaries, check keys directly
-                    elif isinstance(value, dict):
-                        if all(stat in value for stat in required_stats):
-                            core_paths.add(f"root.{key}")
-    else:
-        def search_dict(d: Dict[str, Any], current_path: str):
-            if not isinstance(d, dict):
-                return
-                
-            for key, value in d.items():
-                if not isinstance(value, dict):
-                    continue
-                    
-                new_path = f"{current_path}.{key}" if current_path else key
-                
-                # Check if this is a core stats section
-                if ('cycles' in value and 'cCycles' in value and 'instrs' in value) or \
-                any(comment.strip() == '# Core stats' for comment in str(value).split('\n')):
-                    core_paths.add(new_path)
-                else:
-                    search_dict(value, new_path)
-        
-        # Try each period until we find all core paths
-        for period in data:
-            if not period:  # Skip empty periods
-                continue
-                
-            try:
-                # Start search from root
-                search_dict(period['root'], "root")
-                if core_paths:  # If we found any paths, keep searching for more
-                    continue
-            except (KeyError, AttributeError):
-                continue  # Try next period if any error occurs
-
-    return sorted(list(core_paths))  # Return sorted list of unique paths
 
 
 def combine_plots(plots_dir: str):
