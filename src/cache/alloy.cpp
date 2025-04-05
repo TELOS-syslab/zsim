@@ -15,6 +15,11 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
     MESIState state;
     bool counter_access = false;
 
+    _accessed_ext_lines_set.insert(address);
+    _accessed_ext_lines = _accessed_ext_lines_set.size();
+    _accessed_ext_pages_set.insert(address / (_page_size / 64));
+    _accessed_ext_pages = _accessed_ext_pages_set.size();
+
     // info("access: address = %ld, mc_address = %ld, tag = %ld, set_num = %ld", address, mc_address, tag, set_num);
     // Check for hit
     if (_cache[set_num].ways[0].valid &&
@@ -216,8 +221,14 @@ void AlloyCacheScheme::initStats(AggregateStat* parentStat) {
     stats->append(&_numTagStore);
     _numCounterAccess.init("counterAccess", "Counter Access");
     stats->append(&_numCounterAccess);
-    stats->append(_numTotalLines);
-    stats->append(_numAccessedLines);
+    
     stats->append(_numReaccessedLines);
+    stats->append(_numAccessedLines);
+    stats->append(_numTotalLines);
+    stats->append(_numAccessedExtLines);
+    stats->append(_numTotalExtLines);
+    stats->append(_numAccessedExtPages);
+    stats->append(_numTotalExtPages);
+    
     parentStat->append(stats);
 }

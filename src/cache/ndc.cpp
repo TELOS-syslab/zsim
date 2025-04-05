@@ -16,6 +16,11 @@ uint64_t NDCScheme::access(MemReq& req) {
     uint64_t set_num = getSetNum(mc_address);
     Address tag = getTag(mc_address);
 
+    _accessed_ext_lines_set.insert(address);
+    _accessed_ext_lines = _accessed_ext_lines_set.size();
+    _accessed_ext_pages_set.insert(address / (_page_size / 64));
+    _accessed_ext_pages = _accessed_ext_pages_set.size();
+
     // info("phy_addr = 0x%lx, cache_addr = 0x%lx, set_num = %ld, tag = 0x%lx\n", address, mc_address, set_num, tag);
 
     // Check for cache hit
@@ -229,8 +234,14 @@ void NDCScheme::initStats(AggregateStat* parentStat) {
     stats->append(&_numStoreHit);
     _numStoreMiss.init("storeMiss", "Store Miss");
     stats->append(&_numStoreMiss);
-    stats->append(_numTotalLines);
-    stats->append(_numAccessedLines);
+    
     stats->append(_numReaccessedLines);
+    stats->append(_numAccessedLines);
+    stats->append(_numTotalLines);
+    stats->append(_numAccessedExtLines);
+    stats->append(_numTotalExtLines);
+    stats->append(_numAccessedExtPages);
+    stats->append(_numTotalExtPages);
+    
     parentStat->append(stats);
 }

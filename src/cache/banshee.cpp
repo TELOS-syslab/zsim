@@ -16,6 +16,11 @@ uint64_t BansheeCacheScheme::access(MemReq& req) {
     bool hybrid_tag_probe = false;
     bool counter_access = false;
 
+    _accessed_ext_lines_set.insert(address);
+    _accessed_ext_lines = _accessed_ext_lines_set.size();
+    _accessed_ext_pages_set.insert(address / (_page_size / 64));
+    _accessed_ext_pages = _accessed_ext_pages_set.size();
+
     // Check TLB for hit
     if (_tlb.find(tag) == _tlb.end()) {
         _tlb[tag] = TLBEntry{tag, _num_ways, 0, 0, 0};
@@ -284,9 +289,15 @@ void BansheeCacheScheme::initStats(AggregateStat* parentStat) {
     stats->append(&_numTBDirtyMiss);
     _numCounterAccess.init("counterAccess", "Counter Access");
     stats->append(&_numCounterAccess);
-    stats->append(_numTotalLines);
-    stats->append(_numAccessedLines);
+    
     stats->append(_numReaccessedLines);
+    stats->append(_numAccessedLines);
+    stats->append(_numTotalLines);
+    stats->append(_numAccessedExtLines);
+    stats->append(_numTotalExtLines);
+    stats->append(_numAccessedExtPages);
+    stats->append(_numTotalExtPages);
+    
     parentStat->append(stats);
 }
 

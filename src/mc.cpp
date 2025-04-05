@@ -266,6 +266,8 @@ Address MemoryController::mapPage(MemReq& req) {
                 pgnum = current_block * (cache_page_mask + 1) + (rand & cache_page_mask);
             } while (_exist_pgnum.find(pgnum) != _exist_pgnum.end());
             _johnny_ptr++;
+            assert(_johnny_ptr <= ext_page_mask + 1);
+            assert(pgnum <= ext_page_mask + 1);
             _johnny_ptr &= ext_page_mask;
             assert(_johnny_ptr != 0);
         } else if (_page_map_scheme == "Random") {

@@ -298,6 +298,11 @@ uint64_t CHAMOScheme::access(MemReq& req) {
     assert(mc_address < _cache_size / 64);
     assert(address < _ext_size / 64);
 
+    _accessed_ext_lines_set.insert(address);
+    _accessed_ext_lines = _accessed_ext_lines_set.size();
+    _accessed_ext_pages_set.insert(address / (_page_size / 64));
+    _accessed_ext_pages = _accessed_ext_pages_set.size();
+
     // info("RW:%d, lineAddr = 0x%lx, phy_addr = 0x%lx, cache_addr = 0x%lx, set_num = %ld, tag = 0x%lx\n", type, req.lineAddr, address, mc_address, set_num, tag);
 
     // Check for cache hit
@@ -465,8 +470,14 @@ void CHAMOScheme::initStats(AggregateStat* parentStat) {
     stats->append(&_numStoreHit);
     _numStoreMiss.init("storeMiss", "Store Miss");
     stats->append(&_numStoreMiss);
-    stats->append(_numTotalLines);
-    stats->append(_numAccessedLines);
+    
     stats->append(_numReaccessedLines);
+    stats->append(_numAccessedLines);
+    stats->append(_numTotalLines);
+    stats->append(_numAccessedExtLines);
+    stats->append(_numTotalExtLines);
+    stats->append(_numAccessedExtPages);
+    stats->append(_numTotalExtPages);
+    
     parentStat->append(stats);
 }

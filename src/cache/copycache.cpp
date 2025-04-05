@@ -8,6 +8,11 @@ uint64_t CopyCacheScheme::access(MemReq& req) {
     uint32_t mcdram_select = (address / 64) % _mc->_mcdram_per_mc;
     Address mc_address = (address / 64 / _mc->_mcdram_per_mc * 64) | (address % 64);
 
+    _accessed_ext_lines_set.insert(address);
+    _accessed_ext_lines = _accessed_ext_lines_set.size();
+    _accessed_ext_pages_set.insert(address / (_page_size / 64));
+    _accessed_ext_pages = _accessed_ext_pages_set.size();
+
     req.lineAddr = mc_address;
     req.cycle = _mc->_mcdram[mcdram_select]->access(req, 0, 4);
     req.cycle = _mc->_ext_dram->access(req, 0, 4);
@@ -80,8 +85,14 @@ void CopyCacheScheme::initStats(AggregateStat* parentStat) {
     stats->init("copyCache", "Copy Cache stats");
     _numLoadHit.init("loadHit", "Load Hit");
     stats->append(&_numLoadHit);
-    stats->append(_numTotalLines);
-    stats->append(_numAccessedLines);
+    
     stats->append(_numReaccessedLines);
+    stats->append(_numAccessedLines);
+    stats->append(_numTotalLines);
+    stats->append(_numAccessedExtLines);
+    stats->append(_numTotalExtLines);
+    stats->append(_numAccessedExtPages);
+    stats->append(_numTotalExtPages);
+    
     parentStat->append(stats);
 }

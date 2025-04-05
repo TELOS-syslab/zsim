@@ -29,6 +29,7 @@ class MemoryController : public MemObject {
 	
     g_unordered_map <Address, Address> _tlb;
     g_unordered_set <Address> _exist_pgnum;
+
     // std::unordered_map<Address, Address> _tlb;
     // std::unordered_set<Address> _exist_pgnum;
     g_string _page_map_scheme;

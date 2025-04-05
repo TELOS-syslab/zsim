@@ -4,6 +4,10 @@
 #include <cmath>
 #include "cache/cache_utils.h"
 #include "memory_hierarchy.h"
+#include "g_std/g_unordered_map.h"
+#include "g_std/g_unordered_set.h"
+#include <unordered_map>
+#include <unordered_set>
 #include "stats.h"
 #include "galloc.h"  // Add this for gm_malloc
 #include "zsim.h"
@@ -44,14 +48,24 @@ class CacheScheme {
     double _miss_rate_trace[MAX_STEPS];
     
     // Add utilization statistics
-    uint64_t* _line_access_count;  // Counter for each cache line
+    std::unordered_set <uint64_t> _accessed_ext_lines_set;
+    std::unordered_set <uint64_t> _accessed_ext_pages_set;
+    uint64_t _accessed_ext_lines;
+    uint64_t _accessed_ext_pages;
+    uint64_t* _line_access_count;
     uint64_t _accessed_lines;
     uint64_t _reaccessed_lines;
-    uint64_t _total_lines;         // Total number of cache lines
-    uint64_t _stats_period;        // How often to log statistics (in accesses)
+    uint64_t _total_lines;
+    uint64_t _total_ext_lines;
+    uint64_t _total_ext_pages;
+    uint64_t _stats_period;
     ProxyStat* _numTotalLines;
+    ProxyStat* _numTotalExtLines;
+    ProxyStat* _numTotalExtPages;
     ProxyStat* _numAccessedLines;
     ProxyStat* _numReaccessedLines;
+    ProxyStat* _numAccessedExtLines;
+    ProxyStat* _numAccessedExtPages;
    public:
     CacheScheme(Config& config, MemoryController* mc)
         : _mc(mc) {
@@ -117,6 +131,8 @@ class CacheScheme {
         // Initialize utilization statistics
         _accessed_lines = 0;
         _total_lines = _num_sets * _num_ways;
+        _total_ext_lines = _ext_size / 64;
+        _total_ext_pages = _ext_size / _page_size;
         _line_access_count = (uint64_t*)gm_malloc(sizeof(uint64_t) * _total_lines);
         for (uint64_t i = 0; i < _total_lines; i++) {
             _line_access_count[i] = 0;
@@ -124,10 +140,18 @@ class CacheScheme {
         _stats_period = config.get<uint32_t>("sys.mem.mcdram.utilstats_period", 0);  // Default: log every 1M accesses
         _numTotalLines = new ProxyStat();
         _numTotalLines->init("numTotalLines", "Total number of cache lines", &_total_lines);
+        _numTotalExtLines = new ProxyStat();
+        _numTotalExtLines->init("numTotalExtLines", "Total number of external lines", &_total_ext_lines);
+        _numTotalExtPages = new ProxyStat();
+        _numTotalExtPages->init("numTotalExtPages", "Total number of external pages", &_total_ext_pages);
         _numAccessedLines = new ProxyStat();
         _numAccessedLines->init("numAccessedLines", "Number of cache lines accessed", &_accessed_lines);
         _numReaccessedLines = new ProxyStat();
         _numReaccessedLines->init("numReaccessedLines", "Number of cache lines re-accessed", &_reaccessed_lines);
+        _numAccessedExtLines = new ProxyStat();
+        _numAccessedExtLines->init("numAccessedExtLines", "Number of external lines accessed", &_accessed_ext_lines);
+        _numAccessedExtPages = new ProxyStat();
+        _numAccessedExtPages->init("numAccessedExtPages", "Number of external pages accessed", &_accessed_ext_pages);
     }
 
     virtual uint64_t access(MemReq& req) = 0;  // Pure virtual method for cache access
@@ -157,7 +181,10 @@ class CacheScheme {
     virtual void logUtilizationStats() {
         double utilization = (double)_accessed_lines / _total_lines * 100;
         double reaccess_rate = (double)_reaccessed_lines / _total_lines * 100;
+        double ext_utilization = (double)_accessed_ext_lines / _total_ext_lines * 100;
+        double ext_page_utilization = (double)_accessed_ext_pages / _total_ext_pages * 100;
         info("Cache utilization: %.2f%% (%ld/%ld lines accessed); %.2f%% (%ld/%ld re-accessed lines)", utilization, _accessed_lines, _total_lines, reaccess_rate, _reaccessed_lines, _total_lines);
+        info("Ext memory utilization: %.2f%% (%ld/%ld lines accessed); %.2f%% (%ld/%ld pages accessed)", ext_utilization, _accessed_ext_lines, _total_ext_lines, ext_page_utilization, _accessed_ext_pages, _total_ext_pages);
     }
 };
 

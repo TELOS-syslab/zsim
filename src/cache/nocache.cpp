@@ -71,8 +71,14 @@ void NoCacheScheme::initStats(AggregateStat* parentStat) {
     stats->init("noCache", "NoCache stats");
     _numLoadHit.init("loadHit", "Load Hit");
     stats->append(&_numLoadHit);
-    stats->append(_numTotalLines);
-    stats->append(_numAccessedLines);
+    
     stats->append(_numReaccessedLines);
+    stats->append(_numAccessedLines);
+    stats->append(_numTotalLines);
+    stats->append(_numAccessedExtLines);
+    stats->append(_numTotalExtLines);
+    stats->append(_numAccessedExtPages);
+    stats->append(_numTotalExtPages);
+    
     parentStat->append(stats);
 }
