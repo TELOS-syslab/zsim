@@ -109,7 +109,8 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
             if (_cache[set_num].ways[replace_way].valid) {
                 if (_cache[set_num].ways[replace_way].dirty) {
                     _numDirtyEviction.inc();
-                    if (type == STORE && _sram_tag) {
+                    /* if (type == STORE && _sram_tag) // Banshee's code, but why? */ 
+                    if (type == STORE) {
                         MemReq load_req = {mc_address, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
                         req.cycle = _mc->_mcdram[mcdram_select]->access(load_req, 2, 4);
                         _mc_bw_per_step += 4;
