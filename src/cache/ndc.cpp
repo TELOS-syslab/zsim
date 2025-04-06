@@ -14,7 +14,8 @@ uint64_t NDCScheme::access(MemReq& req) {
     uint32_t mcdram_select = 0;
     Address mc_address = phyAddr2cacheAddr(address);
     uint64_t set_num = getSetNum(mc_address);
-    Address tag = getTag(mc_address);
+    // Address tag = getTag(mc_address);
+    Address tag = address;
 
     _accessed_ext_lines_set.insert(address);
     _accessed_ext_lines = _accessed_ext_lines_set.size();

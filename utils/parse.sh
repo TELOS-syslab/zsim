@@ -7,8 +7,8 @@ if [ -z "$ZSIMPATH" ]; then
 fi
 cd $ZSIMPATH
 
-FROM=54
-TO=58
+FROM=100
+TO=100
 WINDOW_SIZE=500
 STEP=500
 USE_H5=true

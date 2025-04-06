@@ -48,8 +48,8 @@ class CacheScheme {
     double _miss_rate_trace[MAX_STEPS];
     
     // Add utilization statistics
-    std::unordered_set <uint64_t> _accessed_ext_lines_set;
-    std::unordered_set <uint64_t> _accessed_ext_pages_set;
+    g_unordered_set <uint64_t> _accessed_ext_lines_set;
+    g_unordered_set <uint64_t> _accessed_ext_pages_set;
     uint64_t _accessed_ext_lines;
     uint64_t _accessed_ext_pages;
     uint64_t* _line_access_count;
