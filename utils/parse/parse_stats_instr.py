@@ -665,6 +665,9 @@ def get_output_name(zsim_dir: str, cache_name: str = None, stat_type: str = None
     elif stat_type.lower() == 'ipc':
         # For IPC stats, use same pattern as cache stats
         return f"[{category}]-ipc-w{window_size}-s{step}-{cache_name}_{date}.png"
+    elif stat_type.lower() == 'util':
+        # For utilization stats
+        return f"[{category}]-util-w{window_size}-s{step}-{cache_name}_{date}.png"
     else:
         return f"[{category}]-{stat_type}-w{window_size}-s{step}-{cache_name}_{date}.png"
 
@@ -702,22 +705,106 @@ def save_plot_data(data_dict: Dict, output_filename: str, plot_path: str):
     np.savez(data_path, **data_dict)
 
 
+def plot_warning_graph(plot_path: str, output_filename: str, title: str, reason: str = None):
+    """Create a plot with a warning message when no valid data is available."""
+    setup_plot_style()
+    fig = plt.figure(figsize=(12, 6))
+    ax = fig.add_subplot(111)
+    
+    # Hide axes
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    
+    # Add warning text
+    warning_text = reason if reason else 'No valid data available.\nTry reducing window size or step size.'
+    ax.text(0.5, 0.5, warning_text,
+            horizontalalignment='center',
+            verticalalignment='center',
+            fontsize=14,
+            color='red',
+            transform=ax.transAxes)
+    
+    ax.set_title(title)
+    
+    # Save plot
+    if not os.path.exists(plot_path):
+        os.makedirs(plot_path)
+    plt.savefig(os.path.join(plot_path, output_filename), 
+                bbox_inches='tight', pad_inches=0.1)
+    plt.show()
+    plt.close()
+
+
+def check_valid_data_points(data: List[float], window_size: int, step: int) -> bool:
+    """Check if there are any valid data points after applying window and step."""
+    valid_indices = [i for i in range(0, len(data), step) if i >= window_size - 1]
+    return any(not math.isnan(data[i]) for i in valid_indices)
+
+
+def handle_single_point_plot(ax, x, y, label, color, line_style='-', alpha=0.7, linewidth=1.5):
+    """Helper function to plot data that might have only one point."""
+    if len(x) == 1:
+        # For single point, use a visible marker
+        ax.plot(x, y, line_style, color=color, label=label, alpha=alpha, linewidth=linewidth,
+                marker='o', markersize=8, markerfacecolor=color, markeredgecolor='black')
+    else:
+        # Normal line plot for multiple points
+        ax.plot(x, y, line_style, color=color, label=label, alpha=alpha, linewidth=linewidth)
+
+
 def plot_cache_rate_trend(read_hit_rates: List[float], read_miss_rates: List[float], 
                          total_hit_rates: List[float],
                          zsim_dir: str, cache_name: str, window_size: int, step: int,
                          plot_path: str, x_values: np.ndarray, x_type: str):
     """Plot hit rate and miss rate trends using publication-quality style."""
     try:
+        # Check if we have any valid data points after windowing
+        has_data = any([
+            check_valid_data_points(rates, window_size, step)
+            for rates in [read_hit_rates, read_miss_rates, total_hit_rates]
+        ])
+        
+        if not has_data:
+            output_filename = get_output_name(zsim_dir, cache_name=cache_name, 
+                                           stat_type='hit', window_size=window_size,
+                                           step=step)
+            title = f'Cache Performance: {cache_name}\n(Window Size: {window_size}, Step: {step})'
+            plot_warning_graph(plot_path, output_filename, title)
+            return
+
+        # Update x_values length to match data length
+        data_length = len(read_hit_rates)
+        if len(x_values) > data_length:
+            x_values = x_values[:data_length]
+        elif len(x_values) < data_length:
+            x_values = np.pad(x_values, (0, data_length - len(x_values)), 'edge')
+
+        # Only plot points that meet the window size requirement
+        valid_indices = [i for i in range(0, data_length, step) if i >= window_size - 1]
+        if not valid_indices:
+            reason = f"No valid data points with window={window_size} and step={step}.\nTry smaller values."
+            plot_warning_graph(plot_path, output_filename, title, reason)
+            return
+
         setup_plot_style()
         
         fig = plt.figure(figsize=(12, 6))
         ax = fig.add_subplot(111)
         
-        # Plot only trend lines without scatter points
-        ax.plot(x_values[::step], read_hit_rates[::step], '-', color='#1f77b4', 
-               label='Read Hit Rate', linewidth=1.5)
-        ax.plot(x_values[::step], total_hit_rates[::step], '-', color='#2ca02c', 
-               label='Total Hit Rate', linewidth=1.5)
+        # Get valid data points
+        x_plot = x_values[valid_indices]
+        
+        # Plot each metric
+        handle_single_point_plot(ax, x_plot, 
+                               np.array(read_hit_rates)[valid_indices],
+                               'Read Hit Rate', '#1f77b4')
+        handle_single_point_plot(ax, x_plot, 
+                               np.array(total_hit_rates)[valid_indices],
+                               'Total Hit Rate', '#2ca02c')
         
         x_label = 'Billions of Instructions' if x_type == 'instr' else 'Period'
         ax.set_xlabel(x_label)
@@ -759,6 +846,39 @@ def plot_cache_rate_trend(read_hit_rates: List[float], read_miss_rates: List[flo
 def plot_ipc_trend(ipc_data, overall_ipc, zsim_dir, window_size, step, plot_path, x_values=None, x_type='phase'):
     """Plot IPC trends with publication-quality style."""
     try:
+        # Check if we have any valid data points after windowing
+        has_data = any([
+            check_valid_data_points(values, window_size, step)
+            for values in ipc_data.values()
+        ]) or check_valid_data_points(overall_ipc, window_size, step)
+        
+        if not has_data:
+            output_filename = get_output_name(zsim_dir, cache_name="system", 
+                                           stat_type='ipc', window_size=window_size,
+                                           step=step)
+            title = f'Instructions Per Cycle\n(Window Size: {window_size}, Step: {step})'
+            plot_warning_graph(plot_path, output_filename, title)
+            return
+
+        # Update x_values if needed
+        if x_values is None:
+            x_values = np.arange(len(overall_ipc))
+        else:
+            x_values = np.array(x_values)  # Convert to numpy array
+        
+        data_length = len(overall_ipc)
+        if len(x_values) > data_length:
+            x_values = x_values[:data_length]
+        elif len(x_values) < data_length:
+            x_values = np.pad(x_values, (0, data_length - len(x_values)), 'edge')
+
+        # Only plot points that meet the window size requirement
+        valid_indices = np.array([i for i in range(0, data_length, step) if i >= window_size - 1])
+        if len(valid_indices) == 0:
+            reason = f"No valid data points with window={window_size} and step={step}.\nTry smaller values."
+            plot_warning_graph(plot_path, output_filename, title, reason)
+            return
+
         setup_plot_style()
         fig = plt.figure(figsize=(12, 6))
         ax = fig.add_subplot(111)
@@ -767,25 +887,22 @@ def plot_ipc_trend(ipc_data, overall_ipc, zsim_dir, window_size, step, plot_path
         n_cores = len(ipc_data)
         colors = plt.cm.tab20(np.linspace(0, 1, n_cores))
         
-        # Use provided x_values or create default ones
-        if x_values is None:
-            x_values = np.arange(0, len(next(iter(ipc_data.values()))), step)
-        else:
-            x_values = np.array(x_values)[::step]
+        # Get valid data points
+        x_plot = x_values[valid_indices]
         
         # Plot each core's IPC
         for (core_name, ipc_values), color in zip(ipc_data.items(), colors):
-            stepped_values = ipc_values[::step]
-            # Trim x if needed
-            plot_x = x_values[:len(stepped_values)]
-            ax.plot(plot_x, stepped_values, '-', color=color, label=core_name, alpha=0.7,
-                   linewidth=1.5)
+            ipc_array = np.array(ipc_values)  # Convert to numpy array
+            handle_single_point_plot(ax, x_plot, 
+                                   ipc_array[valid_indices],
+                                   core_name, color)
         
         # Plot overall IPC with thick black line
-        stepped_overall = overall_ipc[::step]
-        plot_x = x_values[:len(stepped_overall)]
-        ax.plot(plot_x, stepped_overall, '-', color='black', label='Overall',
-                linewidth=2, zorder=n_cores+1)
+        overall_array = np.array(overall_ipc)  # Convert to numpy array
+        handle_single_point_plot(ax, x_plot, 
+                               overall_array[valid_indices],
+                               'Overall', 'black', 
+                               linewidth=2)
         
         x_label = 'Billions of Instructions' if x_type == 'instr' else 'Period'
         ax.set_xlabel(x_label)
@@ -848,10 +965,11 @@ def combine_plots(plots_dir: str):
     # Group plots by type and window size
     hit_plots = {}  # window_size -> {category -> (cache_name, date, data, step, is_instr_based, x_values)}
     ipc_plots = {}  # window_size -> {category -> (date, data, step, x_values)}
+    util_plots = {}  # window_size -> {category -> (cache_name, date, data, step, is_instr_based, x_values)}
     
     for data_file in data_files:
         # Parse filename: [category]-type-w{window}-s{step}-{cache}_{date}.npz
-        match = re.match(r'\[(.*?)\]-(hit|ipc)-w(\d+)-s(\d+)-(.+?)_(\d{8}-\d{6})\.npz', data_file)
+        match = re.match(r'\[(.*?)\]-(hit|ipc|util)-w(\d+)-s(\d+)-(.+?)_(\d{8}-\d{6})\.npz', data_file)
         if not match:
             continue
             
@@ -876,10 +994,14 @@ def combine_plots(plots_dir: str):
                 if window_size not in hit_plots:
                     hit_plots[window_size] = {}
                 hit_plots[window_size][category] = (cache_name, date, data, step_size, is_instr_based, x_values)
-            else:  # ipc
+            elif plot_type == 'ipc':
                 if window_size not in ipc_plots:
                     ipc_plots[window_size] = {}
                 ipc_plots[window_size][category] = (date, data, step_size, x_values)
+            elif plot_type == 'util':
+                if window_size not in util_plots:
+                    util_plots[window_size] = {}
+                util_plots[window_size][category] = (cache_name, date, data, step_size, is_instr_based, x_values)
         except Exception as e:
             print(f"Error loading {data_file}: {e}")
             continue
@@ -897,6 +1019,8 @@ def combine_plots(plots_dir: str):
         all_categories.update(hit_plots[window_size].keys())
     for window_size in ipc_plots:
         all_categories.update(ipc_plots[window_size].keys())
+    for window_size in util_plots:
+        all_categories.update(util_plots[window_size].keys())
     # Group categories by base name (before first underscore)
     base_categories= set([category.split('_')[0] for category in all_categories])
     base_category_colors = dict([(base_category, distinct_colors[i % len(distinct_colors)]) for i, base_category in enumerate(sorted(base_categories))])
@@ -907,7 +1031,7 @@ def combine_plots(plots_dir: str):
         for category, color in sorted(category_colors.items()):  # Sort for readable output
             print(f"  {category}: {color}")
     # Process each window size
-    for window_size in sorted(set(list(hit_plots.keys()) + list(ipc_plots.keys()))):
+    for window_size in sorted(set(list(hit_plots.keys()) + list(ipc_plots.keys()) + list(util_plots.keys()))):
         # Plot hit rates if we have any
         if window_size in hit_plots and hit_plots[window_size]:
             first_category = next(iter(hit_plots[window_size]))
@@ -923,8 +1047,24 @@ def combine_plots(plots_dir: str):
             
             for category, (cache_name, date, data, _, _, x_values) in hit_plots[window_size].items():
                 hit_rates = data['read_hit_rates'] if 'read_hit_rates' in data else data['hit_rates']
-                ax.plot(x_values[::step_size], hit_rates[::step_size], '-', 
-                       label=category, color=category_colors[category], alpha=0.7, linewidth=1.5)
+                # Convert to numpy arrays
+                x_plot = np.array(x_values)
+                y_plot = np.array(hit_rates)
+                
+                # Get valid points (non-NaN)
+                valid_mask = ~np.isnan(y_plot)
+                if np.any(valid_mask):  # If we have any valid points
+                    if np.sum(valid_mask) == 1:  # Single point
+                        # Find the index of the valid point
+                        valid_idx = np.where(valid_mask)[0][0]
+                        ax.plot(x_plot[valid_idx:valid_idx+1], y_plot[valid_idx:valid_idx+1], 
+                               'o', label=category, color=category_colors[category],
+                               markersize=8, markerfacecolor=category_colors[category],
+                               markeredgecolor='black')
+                    else:  # Multiple points
+                        ax.plot(x_plot[::step_size], y_plot[::step_size], '-', 
+                               label=category, color=category_colors[category],
+                               alpha=0.7, linewidth=1.5)
             
             ax.set_xlabel(x_label)
             ax.set_ylabel('Read Hit Rate')
@@ -949,8 +1089,22 @@ def combine_plots(plots_dir: str):
             for category, (cache_name, date, data, _, _, x_values) in hit_plots[window_size].items():
                 if 'total_hit_rates' in data:
                     total_hit_rates = data['total_hit_rates']
-                    ax.plot(x_values[::step_size], total_hit_rates[::step_size], '-', 
-                           label=category, color=category_colors[category], alpha=0.7, linewidth=1.5)
+                    x_plot = np.array(x_values)
+                    y_plot = np.array(total_hit_rates)
+                    
+                    # Get valid points (non-NaN)
+                    valid_mask = ~np.isnan(y_plot)
+                    if np.any(valid_mask):  # If we have any valid points
+                        if np.sum(valid_mask) == 1:  # Single point
+                            valid_idx = np.where(valid_mask)[0][0]
+                            ax.plot(x_plot[valid_idx:valid_idx+1], y_plot[valid_idx:valid_idx+1], 
+                                   'o', label=category, color=category_colors[category],
+                                   markersize=8, markerfacecolor=category_colors[category],
+                                   markeredgecolor='black')
+                        else:  # Multiple points
+                            ax.plot(x_plot[::step_size], y_plot[::step_size], '-', 
+                                   label=category, color=category_colors[category],
+                                   alpha=0.7, linewidth=1.5)
             
             ax.set_xlabel(x_label)
             ax.set_ylabel('Total Hit Rate')
@@ -987,8 +1141,22 @@ def combine_plots(plots_dir: str):
                 for category in sorted(categories):
                     cache_name, date, data, _, _, x_values = hit_plots[window_size][category]
                     hit_rates = data['read_hit_rates'] if 'read_hit_rates' in data else data['hit_rates']
-                    ax.plot(x_values[::step_size], hit_rates[::step_size], '-', 
-                           label=category, color=base_category_colors[category.split('_')[0]], alpha=0.7, linewidth=1.5)
+                    x_plot = np.array(x_values)
+                    y_plot = np.array(hit_rates)
+                    
+                    # Get valid points (non-NaN)
+                    valid_mask = ~np.isnan(y_plot)
+                    if np.any(valid_mask):  # If we have any valid points
+                        if np.sum(valid_mask) == 1:  # Single point
+                            valid_idx = np.where(valid_mask)[0][0]
+                            ax.plot(x_plot[valid_idx:valid_idx+1], y_plot[valid_idx:valid_idx+1], 
+                                   'o', label=category, color=base_category_colors[category.split('_')[0]],
+                                   markersize=8, markerfacecolor=base_category_colors[category.split('_')[0]],
+                                   markeredgecolor='black')
+                        else:  # Multiple points
+                            ax.plot(x_plot[::step_size], y_plot[::step_size], '-', 
+                                   label=category, color=base_category_colors[category.split('_')[0]],
+                                   alpha=0.7, linewidth=1.5)
                 
                 ax.set_xlabel(x_label)
                 ax.set_ylabel('Read Hit Rate')
@@ -1015,8 +1183,22 @@ def combine_plots(plots_dir: str):
                     cache_name, date, data, _, _, x_values = hit_plots[window_size][category]
                     if 'total_hit_rates' in data:
                         total_hit_rates = data['total_hit_rates']
-                        ax.plot(x_values[::step_size], total_hit_rates[::step_size], '-', 
-                               label=category, color=base_category_colors[category.split('_')[0]], alpha=0.7, linewidth=1.5)
+                        x_plot = np.array(x_values)
+                        y_plot = np.array(total_hit_rates)
+                        
+                        # Get valid points (non-NaN)
+                        valid_mask = ~np.isnan(y_plot)
+                        if np.any(valid_mask):  # If we have any valid points
+                            if np.sum(valid_mask) == 1:  # Single point
+                                valid_idx = np.where(valid_mask)[0][0]
+                                ax.plot(x_plot[valid_idx:valid_idx+1], y_plot[valid_idx:valid_idx+1], 
+                                       'o', label=category, color=base_category_colors[category.split('_')[0]],
+                                       markersize=8, markerfacecolor=base_category_colors[category.split('_')[0]],
+                                       markeredgecolor='black')
+                            else:  # Multiple points
+                                ax.plot(x_plot[::step_size], y_plot[::step_size], '-', 
+                                       label=category, color=base_category_colors[category.split('_')[0]],
+                                       alpha=0.7, linewidth=1.5)
                         has_data = True
                 
                 if has_data:
@@ -1057,16 +1239,22 @@ def combine_plots(plots_dir: str):
             x_base = np.linspace(x_min, x_max, max_len)
             
             for category, (date, data, _, x_values) in ipc_plots[window_size].items():
-                ipc_values = data['overall_ipc']
-                # Create interpolated x values matching ipc_values length
-                x_plot = np.linspace(x_min, x_max, len(ipc_values))
-                # Apply step size and plot
-                x_stepped = x_plot[::step_size]
-                ipc_stepped = ipc_values[::step_size]
-                # Ensure both arrays have the same length before plotting
-                min_len = min(len(x_stepped), len(ipc_stepped))
-                ax.plot(x_stepped[:min_len], ipc_stepped[:min_len], '-', 
-                       label=category, color=category_colors[category], alpha=0.7, linewidth=1.5)
+                ipc_values = np.array(data['overall_ipc'])
+                x_plot = np.array(x_values)
+                
+                # Get valid points (non-NaN)
+                valid_mask = ~np.isnan(ipc_values)
+                if np.any(valid_mask):  # If we have any valid points
+                    if np.sum(valid_mask) == 1:  # Single point
+                        valid_idx = np.where(valid_mask)[0][0]
+                        ax.plot(x_plot[valid_idx:valid_idx+1], ipc_values[valid_idx:valid_idx+1], 
+                               'o', label=category, color=category_colors[category],
+                               markersize=8, markerfacecolor=category_colors[category],
+                               markeredgecolor='black')
+                    else:  # Multiple points
+                        ax.plot(x_plot[::step_size], ipc_values[::step_size], '-', 
+                               label=category, color=category_colors[category],
+                               alpha=0.7, linewidth=1.5)
             
             ax.set_xlabel('Billions of Instructions' if 'Instruction' in str(data.get('x_label', 'Period')) else 'Period')
             ax.set_ylabel('Instructions Per Cycle (IPC)')
@@ -1101,16 +1289,22 @@ def combine_plots(plots_dir: str):
                 
                 for category in sorted(categories):
                     date, data, _, x_values = ipc_plots[window_size][category]
-                    ipc_values = data['overall_ipc']
-                    # Create interpolated x values matching ipc_values length
-                    x_plot = np.linspace(x_min, x_max, len(ipc_values))
-                    # Apply step size and plot
-                    x_stepped = x_plot[::step_size]
-                    ipc_stepped = ipc_values[::step_size]
-                    # Ensure both arrays have the same length before plotting
-                    min_len = min(len(x_stepped), len(ipc_stepped))
-                    ax.plot(x_stepped[:min_len], ipc_stepped[:min_len], '-', 
-                           label=category, color=base_category_colors[category.split('_')[0]], alpha=0.7, linewidth=1.5)
+                    ipc_values = np.array(data['overall_ipc'])
+                    x_plot = np.array(x_values)
+                    
+                    # Get valid points (non-NaN)
+                    valid_mask = ~np.isnan(ipc_values)
+                    if np.any(valid_mask):  # If we have any valid points
+                        if np.sum(valid_mask) == 1:  # Single point
+                            valid_idx = np.where(valid_mask)[0][0]
+                            ax.plot(x_plot[valid_idx:valid_idx+1], ipc_values[valid_idx:valid_idx+1], 
+                                   'o', label=category, color=base_category_colors[category.split('_')[0]],
+                                   markersize=8, markerfacecolor=base_category_colors[category.split('_')[0]],
+                                   markeredgecolor='black')
+                        else:  # Multiple points
+                            ax.plot(x_plot[::step_size], ipc_values[::step_size], '-', 
+                                   label=category, color=base_category_colors[category.split('_')[0]],
+                                   alpha=0.7, linewidth=1.5)
                 
                 ax.set_xlabel('Billions of Instructions' if 'Instruction' in str(data.get('x_label', 'Period')) else 'Period')
                 ax.set_ylabel('Instructions Per Cycle (IPC)')
@@ -1125,6 +1319,274 @@ def combine_plots(plots_dir: str):
                 plt.savefig(os.path.join(plots_dir, f'benchmark_{benchmark}_ipc_w{window_size}_s{step_size}.png'),
                            bbox_inches='tight', pad_inches=0.1)
                 plt.close()
+        
+        # Plot utilization rates if we have any
+        if window_size in util_plots and util_plots[window_size]:
+            first_category = next(iter(util_plots[window_size]))
+            _, _, _, step_size, is_instr_based, _ = util_plots[window_size][first_category]
+            
+            x_label = 'Billions of Instructions' if is_instr_based else 'Period'
+            
+            # Combined utilization plot
+            setup_plot_style()
+            fig = plt.figure(figsize=(12, 6))
+            ax = fig.add_subplot(111)
+            
+            # Plot all categories' utilization data
+            for category, (cache_name, date, data, _, _, x_values) in util_plots[window_size].items():
+                x_plot = np.array(x_values)
+                
+                # Plot cache utilization with solid line
+                if 'cache_util_rates' in data:
+                    cache_util = np.array(data['cache_util_rates']) * 100
+                    valid_mask = ~np.isnan(cache_util)
+                    if np.any(valid_mask):  # If we have any valid points
+                        if np.sum(valid_mask) == 1:  # Single point
+                            valid_idx = np.where(valid_mask)[0][0]
+                            ax.plot(x_plot[valid_idx:valid_idx+1], cache_util[valid_idx:valid_idx+1], 
+                                   'o', label=f'{category} Cache', color=category_colors[category],
+                                   markersize=8, markerfacecolor=category_colors[category],
+                                   markeredgecolor='black')
+                        else:  # Multiple points
+                            ax.plot(x_plot[::step_size], cache_util[::step_size], '-', 
+                                   label=f'{category} Cache', color=category_colors[category],
+                                   alpha=0.7, linewidth=1.5)
+                
+                # Plot ext memory utilization with dashed line
+                if 'ext_mem_rates' in data:
+                    ext_mem = np.array(data['ext_mem_rates']) * 100
+                    valid_mask = ~np.isnan(ext_mem)
+                    if np.any(valid_mask):  # If we have any valid points
+                        if np.sum(valid_mask) == 1:  # Single point
+                            valid_idx = np.where(valid_mask)[0][0]
+                            ax.plot(x_plot[valid_idx:valid_idx+1], ext_mem[valid_idx:valid_idx+1], 
+                                   'o', label=f'{category} ExtMem', color=category_colors[category],
+                                   markersize=8, markerfacecolor=category_colors[category],
+                                   markeredgecolor='black', linestyle='--')
+                        else:  # Multiple points
+                            ax.plot(x_plot[::step_size], ext_mem[::step_size], '--', 
+                                   label=f'{category} ExtMem', color=category_colors[category],
+                                   alpha=0.7, linewidth=1.5)
+            
+            ax.set_xlabel(x_label)
+            ax.set_ylabel('Utilization (%)')
+            ax.set_title(f'Memory System Utilization Comparison\n(Window Size: {window_size}, Step: {step_size})')
+            ax.set_ylim(-0.02, 100.02)
+            ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
+            
+            box = ax.get_position()
+            ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
+            ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
+                     frameon=True, edgecolor='black', fancybox=False)
+            
+            plt.savefig(os.path.join(plots_dir, f'combined_util_w{window_size}_s{step_size}.png'),
+                       bbox_inches='tight', pad_inches=0.1)
+            plt.close()
+            
+            # Create benchmark-specific plots
+            benchmark_groups = {}
+            for category in util_plots[window_size]:
+                benchmark = get_benchmark(category)
+                if benchmark not in benchmark_groups:
+                    benchmark_groups[benchmark] = []
+                benchmark_groups[benchmark].append(category)
+            
+            for benchmark, categories in benchmark_groups.items():
+                if len(categories) <= 1:
+                    continue
+                
+                setup_plot_style()
+                fig = plt.figure(figsize=(12, 6))
+                ax = fig.add_subplot(111)
+                
+                for category in sorted(categories):
+                    cache_name, date, data, _, _, x_values = util_plots[window_size][category]
+                    x_plot = np.array(x_values)
+                    if 'cache_util_rates' in data and 'ext_mem_rates' in data:
+                        cache_util = np.array(data['cache_util_rates']) * 100
+                        ext_mem = np.array(data['ext_mem_rates']) * 100
+                        color = base_category_colors[category.split('_')[0]]
+                        
+                        # Get valid points (non-NaN)
+                        valid_cache_mask = ~np.isnan(cache_util)
+                        valid_ext_mask = ~np.isnan(ext_mem)
+                        
+                        if np.any(valid_cache_mask):  # Cache utilization
+                            if np.sum(valid_cache_mask) == 1:  # Single point
+                                valid_idx = np.where(valid_cache_mask)[0][0]
+                                ax.plot(x_plot[valid_idx:valid_idx+1], cache_util[valid_idx:valid_idx+1], 
+                                       'o', label=f'{category} Cache', color=color,
+                                       markersize=8, markerfacecolor=color,
+                                       markeredgecolor='black')
+                            else:  # Multiple points
+                                ax.plot(x_plot[::step_size], cache_util[::step_size], '-', 
+                                       label=f'{category} Cache', color=color,
+                                       alpha=0.7, linewidth=1.5)
+                        
+                        if np.any(valid_ext_mask):  # Ext memory utilization
+                            if np.sum(valid_ext_mask) == 1:  # Single point
+                                valid_idx = np.where(valid_ext_mask)[0][0]
+                                ax.plot(x_plot[valid_idx:valid_idx+1], ext_mem[valid_idx:valid_idx+1], 
+                                       'o', label=f'{category} ExtMem', color=color,
+                                       markersize=8, markerfacecolor=color,
+                                       markeredgecolor='black', linestyle='--')
+                            else:  # Multiple points
+                                ax.plot(x_plot[::step_size], ext_mem[::step_size], '--', 
+                                       label=f'{category} ExtMem', color=color,
+                                       alpha=0.7, linewidth=1.5)
+                
+                ax.set_xlabel(x_label)
+                ax.set_ylabel('Utilization (%)')
+                ax.set_title(f'Memory System Utilization for {benchmark}\n(Window Size: {window_size}, Step: {step_size})')
+                ax.set_ylim(-0.02, 100.02)
+                ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
+                
+                box = ax.get_position()
+                ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
+                ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
+                         frameon=True, edgecolor='black', fancybox=False)
+                
+                plt.savefig(os.path.join(plots_dir, f'benchmark_{benchmark}_util_w{window_size}_s{step_size}.png'),
+                           bbox_inches='tight', pad_inches=0.1)
+                plt.close()
+
+
+def calculate_cache_util_trend(values, total, window_size, rate_type, step):
+    if len(values) != len(total):
+        raise ValueError("Values and total lists must have the same length")
+
+    # Convert to numpy arrays, handling None values
+    values_array = np.array([float(v) if v is not None else np.nan for v in values])
+    total_array = np.array([float(t) if t is not None else np.nan for t in total])
+
+    # Calculate differences if tracking changes over time
+    values_diff = np.diff(values_array, prepend=0)
+    
+    # Initialize result array
+    rates = np.full(len(values), np.nan)
+    
+    # Calculate rates for each window with the given step size
+    for i in range(0, len(values), step):
+        if i >= window_size - 1:
+            # Get window slice
+            window_slice = slice(max(0, i - window_size + 1), i + 1)
+            
+            # Calculate based on rate type
+            if rate_type in ['cache_util', 'cache_reaccess']:
+                if not np.isnan(total_array[i]) and total_array[i] > 0:
+                    rates[i] = (values_array[i] / total_array[i])
+            
+            elif rate_type in ['ext_mem_util', 'ext_pages_util']:
+                if not np.isnan(total_array[i]) and total_array[i] > 0:
+                    rates[i] = (values_array[i] / total_array[i])
+
+    return rates.tolist()
+
+
+def plot_cache_util_trend(cache_util_rates: List[float], 
+                         cache_reaccess_rates: List[float],
+                         ext_mem_rates: List[float],
+                         ext_pages_rates: List[float],
+                         zsim_dir: str, cache_name: str, 
+                         window_size: int, step: int,
+                         plot_path: str, 
+                         x_values: np.ndarray, 
+                         x_type: str):
+    """Plot all utilization trends in a single figure using publication-quality style."""
+    try:
+        # Check if we have any valid data points after windowing
+        has_data = any([
+            check_valid_data_points(rates, window_size, step)
+            for rates in [cache_util_rates, cache_reaccess_rates, ext_mem_rates, ext_pages_rates]
+        ])
+        
+        if not has_data:
+            output_filename = get_output_name(zsim_dir, cache_name=cache_name, 
+                                           stat_type='util', window_size=window_size,
+                                           step=step)
+            title = f'Memory System Utilization: {cache_name}\n(Window Size: {window_size}, Step: {step})'
+            plot_warning_graph(plot_path, output_filename, title)
+            return
+
+        # Update x_values length to match data length
+        data_length = len(cache_util_rates)
+        if len(x_values) > data_length:
+            x_values = x_values[:data_length]
+        elif len(x_values) < data_length:
+            x_values = np.pad(x_values, (0, data_length - len(x_values)), 'edge')
+
+        # Only plot points that meet the window size requirement
+        valid_indices = [i for i in range(0, data_length, step) if i >= window_size - 1]
+        if not valid_indices:
+            reason = f"No valid data points with window={window_size} and step={step}.\nTry smaller values."
+            plot_warning_graph(plot_path, output_filename, title, reason)
+            return
+
+        setup_plot_style()
+        
+        # Create single figure
+        fig = plt.figure(figsize=(12, 6))
+        ax = fig.add_subplot(111)
+        
+        # Get valid data points
+        x_plot = x_values[valid_indices]
+        
+        # Plot all metrics with different colors and line styles
+        handle_single_point_plot(ax, x_plot, 
+                               np.array(cache_util_rates)[valid_indices]*100,
+                               'Cache Utilization', '#1f77b4', '-')
+        handle_single_point_plot(ax, x_plot, 
+                               np.array(cache_reaccess_rates)[valid_indices]*100,
+                               'Cache Re-access', '#2ca02c', '--')
+        handle_single_point_plot(ax, x_plot, 
+                               np.array(ext_mem_rates)[valid_indices]*100,
+                               'Ext Memory Utilization', '#ff7f0e', ':')
+        handle_single_point_plot(ax, x_plot, 
+                               np.array(ext_pages_rates)[valid_indices]*100,
+                               'Ext Pages Utilization', '#d62728', '-.')
+        
+        # Configure axis
+        x_label = 'Billions of Instructions' if x_type == 'instr' else 'Period'
+        ax.set_xlabel(x_label)
+        ax.set_ylabel('Utilization (%)')
+        ax.set_ylim(-0.02, 100.02)
+        ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
+        
+        # Place legend outside plot
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
+                 frameon=True, edgecolor='black', fancybox=False)
+        
+        ax.set_title(f'Memory System Utilization: {cache_name}\n(Window Size: {window_size}, Step: {step})')
+        
+        # Save plot
+        if not os.path.exists(plot_path):
+            os.makedirs(plot_path)
+            
+        output_filename = get_output_name(zsim_dir, cache_name=cache_name, 
+                                        stat_type='util', window_size=window_size,
+                                        step=step)
+        
+        plt.savefig(os.path.join(plot_path, output_filename), 
+                    bbox_inches='tight', pad_inches=0.1)
+        
+        # Save the data points
+        save_plot_data({
+            'cache_util_rates': cache_util_rates,
+            'cache_reaccess_rates': cache_reaccess_rates,
+            'ext_mem_rates': ext_mem_rates,
+            'ext_pages_rates': ext_pages_rates,
+            'x': x_values.tolist(),
+            'x_label': x_label
+        }, output_filename, plot_path)
+        
+        print(f"Plot saved to: {output_filename}")
+        plt.show()
+        plt.close()
+        
+    except Exception as e:
+        print(f"Error creating utilization plot: {e}")
 
 
 def main():
@@ -1135,7 +1597,7 @@ def main():
     
     # Optional arguments
     parser.add_argument('--stat-type', '-t', default='hit', 
-                      choices=['hit', 'miss', 'thit', 'ipc', 'combine', 'custom'],
+                      choices=['hit', 'miss', 'thit', 'ipc', 'combine', 'custom', 'util'],
                       help='Type of statistic to analyze (default: hit)')
     parser.add_argument('--path', '-p', 
                       help='Custom path to analyze (e.g., "root.l2.hGETS")')
@@ -1269,8 +1731,8 @@ def main():
 
         if VERBOSE:
             print(f"\nRead hit rate trend (window={window_size}, step={step}): ...({window_size}){read_hit_rates[window_size-1:window_size+9]}...")
-            print(f"\nRead miss rate trend (window={window_size}, step={step}): ...({window_size}){read_miss_rates[window_size-1:window_size+9]}...")
-            print(f"\nTotal hit rate trend (window={window_size}, step={step}): ...({window_size}){total_hit_rates[window_size-1:window_size+9]}...")
+            print(f"Read miss rate trend (window={window_size}, step={step}): ...({window_size}){read_miss_rates[window_size-1:window_size+9]}...")
+            print(f"Total hit rate trend (window={window_size}, step={step}): ...({window_size}){total_hit_rates[window_size-1:window_size+9]}...")
 
         # Calculate averages ignoring NaN values
         if 'np' in globals():
@@ -1350,11 +1812,95 @@ def main():
             plot_ipc_trend(ipc_data, overall_ipc, zsim_dir, window_size, step, plot_path,
                           x_values=x_values, x_type=actual_rate_type)
 
+    elif stat_type == "util":
+        print(f"Calculating utilization statistics for {zsim_dir}...")
+        if not os.path.exists(zsim_file):
+            print(f"Error: zsim_file not found in directory {zsim_dir}")
+            sys.exit(1)
+            
+        data = parse_zsim_output(zsim_file, use_h5=use_h5)
+        cache_paths = find_cache_paths(data)
+        
+        if not cache_paths:
+            print("No cache paths found under root.mem.mem-0")
+            sys.exit(1)
+            
+        # Use the first cache found
+        base_path = cache_paths[0]
+        cache_name = base_path.split('.')[-1]
+        print(f"Found cache: {cache_name}")
+        
+        # Get all relevant cache access stats
+        reaccessed_path = f"{base_path}.numReaccessedLines"
+        accessed_path = f"{base_path}.numAccessedLines"
+        total_path = f"{base_path}.numTotalLines"
+        ext_accessed_path = f"{base_path}.numAccessedExtLines"
+        ext_total_path = f"{base_path}.numTotalExtLines"
+        ext_pages_accessed_path = f"{base_path}.numAccessedExtPages"
+        ext_pages_total_path = f"{base_path}.numTotalExtPages"
+        
+        print(f"Analyzing utilization statistics for {base_path}")
+        
+        # Get both load and store hits/misses 
+        paths_to_extract = [reaccessed_path, accessed_path, total_path, ext_accessed_path, ext_total_path, ext_pages_accessed_path, ext_pages_total_path]
+        extracted_values = get_multiple_values(data, paths_to_extract)
+        
+        reaccessed = extracted_values[reaccessed_path]
+        accessed = extracted_values[accessed_path]
+        cache_total = extracted_values[total_path]
+        ext_accessed = extracted_values[ext_accessed_path]
+        ext_total = extracted_values[ext_total_path]
+        ext_pages_accessed = extracted_values[ext_pages_accessed_path]
+        ext_pages_total = extracted_values[ext_pages_total_path]
+
+        # After getting the extracted values:
+        if VERBOSE:
+            print("\nRaw values:")
+            print(f"Cache re-accessed: {reaccessed[:10]}...")
+            print(f"Cache accessed: {accessed[:10]}...")
+            print(f"Cache total: {cache_total[:10]}...")
+            print(f"Ext accessed: {ext_accessed[:10]}...")
+            print(f"Ext total: {ext_total[:10]}...")
+            print(f"Ext pages accessed: {ext_pages_accessed[:10]}...")
+            print(f"Ext pages total: {ext_pages_total[:10]}...")
+
+        cache_util_rates = calculate_cache_util_trend(accessed, cache_total, window_size, 'cache_util', step)
+        cache_reaccess_rates = calculate_cache_util_trend(reaccessed, cache_total, window_size, 'cache_reaccess', step)
+        ext_mem_util_rates = calculate_cache_util_trend(ext_accessed, ext_total, window_size, 'ext_mem_util', step)
+        ext_pages_util_rates = calculate_cache_util_trend(ext_pages_accessed, ext_pages_total, window_size, 'ext_pages_util', step)
+        
+        if VERBOSE:
+            print(f"\nCache utilization rates (window={window_size}, step={step}): ...({window_size}){cache_util_rates[window_size-1:window_size+9]}...")
+            print(f"Cache reaccess rates (window={window_size}, step={step}): ...({window_size}){cache_reaccess_rates[window_size-1:window_size+9]}...")
+            print(f"External memory utilization rates (window={window_size}, step={step}): ...({window_size}){ext_mem_util_rates[window_size-1:window_size+9]}...")
+            print(f"External pages utilization rates (window={window_size}, step={step}): ...({window_size}){ext_pages_util_rates[window_size-1:window_size+9]}...")
+            
+        # Get x-axis values based on rate type
+        if rate_type == 'instr':
+            total_instrs = get_total_instructions(data, use_h5=use_h5)
+            if len(total_instrs) == 0:
+                print("Warning: Could not get instruction counts, falling back to phase-based")
+                rate_type = 'phase'
+        
+        # Plot with appropriate x-axis
+        if plot_enabled:
+            try:
+                if rate_type == 'instr':
+                    x_values = total_instrs / 1e9  # Convert to billions
+                else:
+                    x_values = np.arange(len(cache_util_rates))
+                    
+                plot_cache_util_trend(cache_util_rates, cache_reaccess_rates, ext_mem_util_rates, ext_pages_util_rates,
+                                    zsim_dir, cache_name, window_size, step, plot_path,
+                                    x_values=x_values, x_type=rate_type)
+            except Exception as e:
+                print(f"Unable to create plot: {e}")
+
     elif stat_type == "combine":
         print(f"Calculating COMBINED for {zsim_dir}...")
         plot_path = os.path.join(zsim_dir, "plots")
         combine_plots(plot_path)
-
+        
     end_time = time.time()
     debug_print(f"Total execution time: {end_time - start_time:.2f} seconds")
 

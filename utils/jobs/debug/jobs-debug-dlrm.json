@@ -1,0 +1,7 @@
+[
+  {
+    "name": "dlrm-ndc-0_4G_32G",
+    "command": "./utils/run.sh benchmarks dlrm ndc-0_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

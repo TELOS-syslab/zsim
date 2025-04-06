@@ -5,11 +5,6 @@
     "working_dir": "~/chunk/git/git-own/zsim/"
   },
   {
-    "name": "ft.B-alloy_2G_32G",
-    "command": "./utils/run.sh benchmarks ft.B alloy_2G_32G",
-    "working_dir": "~/chunk/git/git-own/zsim/"
-  },
-  {
     "name": "ft.B-alloy_4G_32G",
     "command": "./utils/run.sh benchmarks ft.B alloy_4G_32G",
     "working_dir": "~/chunk/git/git-own/zsim/"
@@ -17,11 +12,6 @@
   {
     "name": "ft.B-idealbalanced_8G_32G",
     "command": "./utils/run.sh benchmarks ft.B idealbalanced_8G_32G",
-    "working_dir": "~/chunk/git/git-own/zsim/"
-  },
-  {
-    "name": "ft.B-idealbalanced_2G_32G",
-    "command": "./utils/run.sh benchmarks ft.B idealbalanced_2G_32G",
     "working_dir": "~/chunk/git/git-own/zsim/"
   },
   {
@@ -35,11 +25,6 @@
     "working_dir": "~/chunk/git/git-own/zsim/"
   },
   {
-    "name": "ft.B-idealfully_2G_32G",
-    "command": "./utils/run.sh benchmarks ft.B idealfully_2G_32G",
-    "working_dir": "~/chunk/git/git-own/zsim/"
-  },
-  {
     "name": "ft.B-idealfully_4G_32G",
     "command": "./utils/run.sh benchmarks ft.B idealfully_4G_32G",
     "working_dir": "~/chunk/git/git-own/zsim/"
@@ -47,11 +32,6 @@
   {
     "name": "ft.B-ndc-0_8G_32G",
     "command": "./utils/run.sh benchmarks ft.B ndc-0_8G_32G",
-    "working_dir": "~/chunk/git/git-own/zsim/"
-  },
-  {
-    "name": "ft.B-ndc-0_2G_32G",
-    "command": "./utils/run.sh benchmarks ft.B ndc-0_2G_32G",
     "working_dir": "~/chunk/git/git-own/zsim/"
   },
   {

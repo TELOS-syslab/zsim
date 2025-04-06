@@ -7,12 +7,12 @@ if [ -z "$ZSIMPATH" ]; then
 fi
 cd $ZSIMPATH
 
-FROM=100
-TO=100
-WINDOW_SIZE=500
-STEP=500
+FROM=69
+TO=71
+WINDOW_SIZE=50
+STEP=50
 USE_H5=true
-TARGET="all" # hit, ipc, or all
+TARGET="all" # hit, ipc, util, or all
 VERBOSE=true
 if [ "$USE_H5" == "true" ]; then
     WINDOW_SIZE=$((WINDOW_SIZE * 10))
@@ -32,43 +32,39 @@ process_stat() {
 
     if [ "$use_h5" == "true" ]; then
         if [ "$verbose" == "true" ]; then
-            if [ "$target" == "hit" ]; then
+            if [ "$target" == "all" ]; then
                 ./utils/parse/parse_stats_instr.py "$dir" -t hit -w "$window_size" -s "$step"  --plot -h5 -v
-            elif [ "$target" == "ipc" ]; then
                 ./utils/parse/parse_stats_instr.py "$dir" -t ipc -w "$window_size" -s "$step"  --plot -h5 -v
+                ./utils/parse/parse_stats_instr.py "$dir" -t util -w "$window_size" -s "$step"  --plot -h5 -v
             else
-                ./utils/parse/parse_stats_instr.py "$dir" -t hit -w "$window_size" -s "$step"  --plot -h5 -v
-                ./utils/parse/parse_stats_instr.py "$dir" -t ipc -w "$window_size" -s "$step"  --plot -h5 -v
+                ./utils/parse/parse_stats_instr.py "$dir" -t $target -w "$window_size" -s "$step"  --plot -h5 -v
             fi
         else
-            if [ "$target" == "hit" ]; then
+            if [ "$target" == " " ]; then
                 ./utils/parse/parse_stats_instr.py "$dir" -t hit -w "$window_size" -s "$step"  --plot -h5
-            elif [ "$target" == "ipc" ]; then
                 ./utils/parse/parse_stats_instr.py "$dir" -t ipc -w "$window_size" -s "$step"  --plot -h5
+                ./utils/parse/parse_stats_instr.py "$dir" -t util -w "$window_size" -s "$step"  --plot -h5
             else
-                ./utils/parse/parse_stats_instr.py "$dir" -t hit -w "$window_size" -s "$step"  --plot -h5
-                ./utils/parse/parse_stats_instr.py "$dir" -t ipc -w "$window_size" -s "$step"  --plot -h5
+                ./utils/parse/parse_stats_instr.py "$dir" -t $target -w "$window_size" -s "$step"  --plot -h5
             fi
         fi
         
     else
         if [ "$verbose" == "true" ]; then
-            if [ "$target" == "hit" ]; then
+            if [ "$target" == "all  " ]; then
                 ./utils/parse/parse_stats_instr.py "$dir" -t hit -w "$window_size" -s "$step"  --plot -v
-            elif [ "$target" == "ipc" ]; then
                 ./utils/parse/parse_stats_instr.py "$dir" -t ipc -w "$window_size" -s "$step"  --plot -v
+                ./utils/parse/parse_stats_instr.py "$dir" -t util -w "$window_size" -s "$step"  --plot -v
             else
-                ./utils/parse/parse_stats_instr.py "$dir" -t hit -w "$window_size" -s "$step"  --plot -v
-                ./utils/parse/parse_stats_instr.py "$dir" -t ipc -w "$window_size" -s "$step"  --plot -v
+                ./utils/parse/parse_stats_instr.py "$dir" -t $target -w "$window_size" -s "$step"  --plot -v
             fi
         else
-            if [ "$target" == "hit" ]; then
+            if [ "$target" == "all" ]; then
                 ./utils/parse/parse_stats_instr.py "$dir" -t hit -w "$window_size" -s "$step"  --plot
-            elif [ "$target" == "ipc" ]; then
                 ./utils/parse/parse_stats_instr.py "$dir" -t ipc -w "$window_size" -s "$step"  --plot
+                ./utils/parse/parse_stats_instr.py "$dir" -t util -w "$window_size" -s "$step"  --plot
             else
-                ./utils/parse/parse_stats_instr.py "$dir" -t hit -w "$window_size" -s "$step"  --plot
-                ./utils/parse/parse_stats_instr.py "$dir" -t ipc -w "$window_size" -s "$step"  --plot
+                ./utils/parse/parse_stats_instr.py "$dir" -t $target -w "$window_size" -s "$step"  --plot
             fi
         fi
     fi
