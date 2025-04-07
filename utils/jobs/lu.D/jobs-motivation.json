@@ -1,0 +1,42 @@
+[
+  {
+    "name": "lu.D-1-alloy_4G_64G",
+    "command": "./utils/run.sh benchmarks lu.D-1 alloy_4G_64G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "lu.D-1-alloy_8G_64G",
+    "command": "./utils/run.sh benchmarks lu.D-1 alloy_8G_64G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "lu.D-1-idealbalanced_4G_64G",
+    "command": "./utils/run.sh benchmarks lu.D-1 idealbalanced_4G_64G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "lu.D-1-idealbalanced_8G_64G",
+    "command": "./utils/run.sh benchmarks lu.D-1 idealbalanced_8G_64G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "lu.D-1-idealfully_4G_64G",
+    "command": "./utils/run.sh benchmarks lu.D-1 idealfully_4G_64G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "lu.D-1-idealfully_8G_64G",
+    "command": "./utils/run.sh benchmarks lu.D-1 idealfully_8G_64G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "lu.D-1-ndc-0_4G_64G",
+    "command": "./utils/run.sh benchmarks lu.D-1 ndc-0_4G_64G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "lu.D-1-ndc-0_8G_64G",
+    "command": "./utils/run.sh benchmarks lu.D-1 ndc-0_8G_64G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

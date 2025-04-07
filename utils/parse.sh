@@ -7,10 +7,10 @@ if [ -z "$ZSIMPATH" ]; then
 fi
 cd $ZSIMPATH
 
-FROM=69
-TO=71
-WINDOW_SIZE=50
-STEP=50
+FROM=72
+TO=77
+WINDOW_SIZE=200
+STEP=200
 USE_H5=true
 TARGET="all" # hit, ipc, util, or all
 VERBOSE=true
