@@ -262,6 +262,11 @@ uint64_t DDRMemory::access(MemReq& req, int type, uint32_t data_size) {
         default: panic("!?");
     }
 	assert(data_size % 2 == 0);
+
+    if (!zinfo->warmup_done) {
+        return req.cycle;
+    }
+
     if (req.type == PUTS) {
         return req.cycle; //must return an absolute value, 0 latency
     } else {

@@ -11,8 +11,9 @@
 #include <unordered_set>
 #include "memory_hierarchy.h"
 #include "stats.h"
-
+#include "zsim.h"
 #include "galloc.h"
+#include "process_stats.h"  // Add this include
 
 class DDRMemory;
 
@@ -61,7 +62,13 @@ class MemoryController : public MemObject {
     const char* getName() override { return _name.c_str(); }
     void initStats(AggregateStat* parentStat) override;
     void printStats() override;
-    
+
+    inline void updateWarmupDone() {
+        if (zinfo->warmup_done) return;
+        if (zinfo->processStats->getTotalProcessInstrs() >= zinfo->warmup_instrs) {
+            zinfo->warmup_done = true;
+        }
+    }
     // Accessors for CacheScheme and memory components
     Scheme getScheme() { return _scheme; };
     CacheScheme* getCacheScheme() { return _cache_scheme; }

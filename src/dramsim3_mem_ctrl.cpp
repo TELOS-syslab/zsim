@@ -241,7 +241,9 @@ uint64_t DRAMSim3Memory::access(MemReq &req, int type, uint32_t data_size) {
         default:
             panic("!?");
     }
-
+    if (!zinfo->warmup_done) {
+        return req.cycle;
+    }
     uint64_t respCycle = req.cycle;
     if ((req.type != PUTS /*discard clean writebacks*/) && zinfo->eventRecorders[req.srcId]) {
         bool isWrite = (req.type == PUTX);

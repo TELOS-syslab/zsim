@@ -318,6 +318,7 @@ uint64_t MemoryController::access(MemReq& req) {
         handleTraceCollection(req);
     }
 
+    updateWarmupDone();
     _cache_scheme->incNumRequests();
 
     // Delegate access to CacheScheme

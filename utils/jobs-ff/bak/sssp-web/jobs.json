@@ -1,0 +1,72 @@
+[
+  {
+    "name": "sssp-web-alloy_8G_32G",
+    "command": "./utils/run.sh benchmarks sssp-web alloy_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "sssp-web-alloy_4G_32G",
+    "command": "./utils/run.sh benchmarks sssp-web alloy_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "sssp-web-chamo_8G_32G",
+    "command": "./utils/run.sh benchmarks sssp-web chamo_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "sssp-web-chamo_4G_32G",
+    "command": "./utils/run.sh benchmarks sssp-web chamo_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "sssp-web-idealassociative_8G_32G",
+    "command": "./utils/run.sh benchmarks sssp-web idealassociative_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "sssp-web-idealassociative_4G_32G",
+    "command": "./utils/run.sh benchmarks sssp-web idealassociative_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "sssp-web-idealbalanced_8G_32G",
+    "command": "./utils/run.sh benchmarks sssp-web idealbalanced_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "sssp-web-idealbalanced_4G_32G",
+    "command": "./utils/run.sh benchmarks sssp-web idealbalanced_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "sssp-web-idealfully_8G_32G",
+    "command": "./utils/run.sh benchmarks sssp-web idealfully_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "sssp-web-idealfully_4G_32G",
+    "command": "./utils/run.sh benchmarks sssp-web idealfully_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "sssp-web-ndc-0_8G_32G",
+    "command": "./utils/run.sh benchmarks sssp-web ndc-0_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "sssp-web-ndc-0_4G_32G",
+    "command": "./utils/run.sh benchmarks sssp-web ndc-0_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "sssp-web-ndc-f_8G_32G",
+    "command": "./utils/run.sh benchmarks sssp-web ndc-f_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "sssp-web-ndc-f_4G_32G",
+    "command": "./utils/run.sh benchmarks sssp-web ndc-f_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

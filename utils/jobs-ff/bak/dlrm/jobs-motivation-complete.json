@@ -1,0 +1,12 @@
+[
+  {
+    "name": "dlrm-2-idealfully_1G_8G",
+    "command": "./utils/run.sh benchmarks dlrm-2 idealfully_1G_8G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-2-idealfully_2G_8G",
+    "command": "./utils/run.sh benchmarks dlrm-2 idealfully_2G_8G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

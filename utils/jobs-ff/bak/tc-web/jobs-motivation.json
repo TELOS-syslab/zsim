@@ -1,0 +1,52 @@
+[
+  {
+    "name": "tc-web-alloy_8G_32G",
+    "command": "./utils/run.sh benchmarks tc-web alloy_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "tc-web-alloy_4G_32G",
+    "command": "./utils/run.sh benchmarks tc-web alloy_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "tc-web-idealassociative_8G_32G",
+    "command": "./utils/run.sh benchmarks tc-web idealassociative_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "tc-web-idealassociative_4G_32G",
+    "command": "./utils/run.sh benchmarks tc-web idealassociative_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "tc-web-idealbalanced_8G_32G",
+    "command": "./utils/run.sh benchmarks tc-web idealbalanced_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "tc-web-idealbalanced_4G_32G",
+    "command": "./utils/run.sh benchmarks tc-web idealbalanced_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "tc-web-idealfully_8G_32G",
+    "command": "./utils/run.sh benchmarks tc-web idealfully_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "tc-web-idealfully_4G_32G",
+    "command": "./utils/run.sh benchmarks tc-web idealfully_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "tc-web-ndc-0_8G_32G",
+    "command": "./utils/run.sh benchmarks tc-web ndc-0_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "tc-web-ndc-0_4G_32G",
+    "command": "./utils/run.sh benchmarks tc-web ndc-0_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

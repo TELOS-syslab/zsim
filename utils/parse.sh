@@ -7,10 +7,10 @@ if [ -z "$ZSIMPATH" ]; then
 fi
 cd $ZSIMPATH
 
-FROM=72
-TO=77
-WINDOW_SIZE=200
-STEP=200
+FROM=103
+TO=103
+WINDOW_SIZE=10
+STEP=10
 USE_H5=true
 TARGET="all" # hit, ipc, util, or all
 VERBOSE=true
@@ -77,7 +77,7 @@ for pattern in `seq $FROM $TO`; do
     echo "Processing pattern: ${pattern}*"
     # Find all matching directories and process them in parallel
     find output/results/${pattern}*/*[\[\]]* -type d | \
-        xargs -P 16 -I DIR bash -c "process_stat DIR \"$USE_H5\" \"$TARGET\" \"$WINDOW_SIZE\" \"$STEP\" \"$VERBOSE\""
+        xargs -P 32 -I DIR bash -c "process_stat DIR \"$USE_H5\" \"$TARGET\" \"$WINDOW_SIZE\" \"$STEP\" \"$VERBOSE\""
     echo "========================================"
 
     # Combine results for this pattern - process each matching directory separately

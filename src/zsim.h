@@ -106,7 +106,9 @@ struct GlobSimInfo {
     uint64_t maxTotalInstrs; //terminate when the aggregate number of instructions reaches this number
     uint64_t maxSimTimeNs; //terminate when the simulation time (bound+weave) exceeds this many ns
     uint64_t maxProcEventualDumps; //term if the number of heartbeat-triggered process dumps reached this (MP/MT)
-
+    uint64_t warmup_instrs;
+    bool warmup_done;
+    
     bool ignoreHooks;
     bool blockingSyscalls;
     bool perProcessCpuEnum; //if true, cpus are enumerated according to per-process masks (e.g., a 16-core mask in a 64-core sim sees 16 cores)

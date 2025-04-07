@@ -1,0 +1,62 @@
+[
+  {
+    "name": "silo-alloy_1G_16G",
+    "command": "./utils/run.sh benchmarks silo alloy_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "silo-alloy_2G_16G",
+    "command": "./utils/run.sh benchmarks silo alloy_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "silo-alloy_4G_16G",
+    "command": "./utils/run.sh benchmarks silo alloy_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "silo-chamo_1G_16G",
+    "command": "./utils/run.sh benchmarks silo chamo_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "silo-chamo_2G_16G",
+    "command": "./utils/run.sh benchmarks silo chamo_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "silo-chamo_4G_16G",
+    "command": "./utils/run.sh benchmarks silo chamo_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "silo-ndc-0_1G_16G",
+    "command": "./utils/run.sh benchmarks silo ndc-0_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "silo-ndc-0_2G_16G",
+    "command": "./utils/run.sh benchmarks silo ndc-0_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "silo-ndc-0_4G_16G",
+    "command": "./utils/run.sh benchmarks silo ndc-0_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "silo-ndc-f_1G_16G",
+    "command": "./utils/run.sh benchmarks silo ndc-f_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "silo-ndc-f_2G_16G",
+    "command": "./utils/run.sh benchmarks silo ndc-f_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "silo-ndc-f_4G_16G",
+    "command": "./utils/run.sh benchmarks silo ndc-f_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

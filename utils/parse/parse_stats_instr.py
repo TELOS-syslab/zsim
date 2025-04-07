@@ -266,12 +266,12 @@ def find_cache_paths(data: List[Dict[str, Any]], base_path: str = "root.mem.mem-
 
 
 def find_core_paths(data: List[Dict[str, Any]], use_h5: bool = False) -> List[str]:
-    """Find all core paths that have cycles, cCycles, and instrs stats."""
+    """Find all core paths that have cycles, and instrs stats."""
     if not data:
         return []
     
     core_paths = set()  # Use set to avoid duplicates
-    required_stats = {'cycles', 'cCycles', 'instrs'}
+    required_stats = {'cycles', 'instrs'}
     
     if use_h5:
         # Handle HDF5 format - data structure is flatter
@@ -304,7 +304,7 @@ def find_core_paths(data: List[Dict[str, Any]], use_h5: bool = False) -> List[st
                 new_path = f"{current_path}.{key}" if current_path else key
                 
                 # Check if this is a core stats section
-                if ('cycles' in value and 'cCycles' in value and 'instrs' in value) or \
+                if ('cycles' in value and 'instrs' in value) or \
                 any(comment.strip() == '# Core stats' for comment in str(value).split('\n')):
                     core_paths.add(new_path)
                 else:
@@ -553,7 +553,6 @@ def calculate_ipc(file_path: str, base_path: str, window_size: int = 1, step: in
     for core_path in core_paths:
         paths_to_extract.extend([
             f"{core_path}.cycles",
-            f"{core_path}.cCycles",
             f"{core_path}.instrs"
         ])
     
@@ -563,7 +562,6 @@ def calculate_ipc(file_path: str, base_path: str, window_size: int = 1, step: in
     # First, get per-period sums across all cores
     total_metrics = {
         'cycles': np.zeros(num_periods),
-        'cCycles': np.zeros(num_periods),
         'instrs': np.zeros(num_periods)
     }
     
@@ -575,19 +573,18 @@ def calculate_ipc(file_path: str, base_path: str, window_size: int = 1, step: in
         # Sum across cores for each period
         for period in range(num_periods):
             for core_path in core_paths:
-                for metric in ['cycles', 'cCycles', 'instrs']:
+                for metric in ['cycles', 'instrs']:
                     values = extracted_values[f"{core_path}.{metric}"][period]
                     total_metrics[metric][period] = np.sum([float(v) if v is not None else 0 for v in values])
     else:
         # For text format, reorganize and sum
         for core_path in core_paths:
-            for metric in ['cycles', 'cCycles', 'instrs']:
+            for metric in ['cycles', 'instrs']:
                 values = extracted_values[f"{core_path}.{metric}"]
                 total_metrics[metric] += np.array([float(v) if v is not None else 0 for v in values])
     
     # Calculate overall IPC using the totals
     total_cycles_diff = np.diff(total_metrics['cycles'], prepend=0)
-    total_cCycles_diff = np.diff(total_metrics['cCycles'], prepend=0)
     total_instrs_diff = np.diff(total_metrics['instrs'], prepend=0)
     
     overall_ipc = np.full(num_periods, np.nan)
@@ -595,10 +592,9 @@ def calculate_ipc(file_path: str, base_path: str, window_size: int = 1, step: in
         if i >= window_size - 1:
             window_slice = slice(max(0, i - window_size + 1), i + 1)
             window_cycles = np.sum(total_cycles_diff[window_slice])
-            window_cCycles = np.sum(total_cCycles_diff[window_slice])
             window_instrs = np.sum(total_instrs_diff[window_slice])
             
-            total_cycles = window_cycles + window_cCycles
+            total_cycles = window_cycles
             if total_cycles > 0:
                 overall_ipc[i] = window_instrs / total_cycles
     
@@ -611,10 +607,9 @@ def calculate_ipc(file_path: str, base_path: str, window_size: int = 1, step: in
             if i >= window_size - 1:
                 window_slice = slice(max(0, i - window_size + 1), i + 1)
                 window_cycles = np.sum(total_cycles_diff[window_slice])
-                window_cCycles = np.sum(total_cCycles_diff[window_slice])
                 window_instrs = np.sum(total_instrs_diff[window_slice])
                 
-                total_cycles = window_cycles + window_cCycles
+                total_cycles = window_cycles
                 if total_cycles > 0:
                     core_ipc[i] = window_instrs / total_cycles
         
@@ -1790,7 +1785,7 @@ def main():
                                                                          use_h5=use_h5,
                                                                          rate_type=rate_type)
         if not ipc_data:
-            print("No core paths found with cycles, cCycles, and instrs stats")
+            print("No core paths found with cycles, and instrs stats")
             sys.exit(1)
         
         # Print IPC for active cores
