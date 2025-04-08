@@ -964,8 +964,10 @@ static void PostInitStats(bool perProcessDir, Config& config, string suffix_str=
             public:
                 explicit PeriodicStatsDumpEvent(uint32_t period) : Event(period) {}
                 void callback() {
-                    zinfo->trigger = 10000;
-                    zinfo->periodicStatsBackend->dump(true /*buffered*/);
+                    if (zinfo->warmup_dump || zinfo->warmup_done) {
+                        zinfo->trigger = 10000;
+                        zinfo->periodicStatsBackend->dump(true /*buffered*/);
+                    }
                 }
         };
 
@@ -983,8 +985,10 @@ static void PostInitStats(bool perProcessDir, Config& config, string suffix_str=
             public:
                 explicit PeriodicOutputDumpEvent(uint32_t period) : Event(period) {}
                 void callback() {
-                    zinfo->trigger = 20000;
-                    zinfo->periodicOutputStatsBackend->dump(true /*buffered*/);
+                    if (zinfo->warmup_dump || zinfo->warmup_done) {
+                        zinfo->trigger = 20000;
+                        zinfo->periodicOutputStatsBackend->dump(true /*buffered*/);
+                    }
                 }
         };
 
@@ -1124,6 +1128,7 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid, cons
     zinfo->procEventualDumps = 0;
 
     zinfo->warmup_instrs = config.get<uint64_t>("sim.warmupInstrs", 0);
+    zinfo->warmup_dump = config.get<bool>("sim.warmupDump", true);
     zinfo->warmup_done = false;
 
     zinfo->skipStatsVectors = config.get<bool>("sim.skipStatsVectors", false);

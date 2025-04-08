@@ -107,6 +107,7 @@ struct GlobSimInfo {
     uint64_t maxSimTimeNs; //terminate when the simulation time (bound+weave) exceeds this many ns
     uint64_t maxProcEventualDumps; //term if the number of heartbeat-triggered process dumps reached this (MP/MT)
     uint64_t warmup_instrs;
+    bool warmup_dump;
     bool warmup_done;
     
     bool ignoreHooks;

@@ -570,12 +570,12 @@ def calculate_ipc(file_path: str, base_path: str, window_size: int = 1, step: in
         first_stat = next(iter(extracted_values.values()))
         num_cores = len(first_stat[0]) if isinstance(first_stat[0], (list, np.ndarray)) else 1
         
-        # Sum across cores for each period
-        for period in range(num_periods):
-            for core_path in core_paths:
-                for metric in ['cycles', 'instrs']:
-                    values = extracted_values[f"{core_path}.{metric}"][period]
-                    total_metrics[metric][period] = np.sum([float(v) if v is not None else 0 for v in values])
+        # More efficient period-wise summation using numpy
+        for metric in ['cycles', 'instrs']:
+            metric_values = np.array([[float(extracted_values[f"{core_path}.{metric}"][p][i]) if extracted_values[f"{core_path}.{metric}"][p][i] is not None else 0 
+                                     for i in range(num_cores)] 
+                                    for p in range(num_periods)])
+            total_metrics[metric] = np.sum(metric_values, axis=1)
     else:
         # For text format, reorganize and sum
         for core_path in core_paths:
