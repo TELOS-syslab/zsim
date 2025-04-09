@@ -1130,6 +1130,8 @@ void SimInit(const char* configFile, const char* outputDir, uint32_t shmid, cons
     zinfo->warmup_instrs = config.get<uint64_t>("sim.warmupInstrs", 0);
     zinfo->warmup_dump = config.get<bool>("sim.warmupDump", true);
     zinfo->warmup_done = false;
+    if (zinfo->warmup_instrs <= 0)
+        zinfo->warmup_done = true;
 
     zinfo->skipStatsVectors = config.get<bool>("sim.skipStatsVectors", false);
     zinfo->compactPeriodicStats = config.get<bool>("sim.compactPeriodicStats", false);

@@ -1,0 +1,52 @@
+[
+  {
+    "name": "cg.D-dramsim-alloy_2G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D-dramsim alloy_2G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-dramsim-alloy_4G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D-dramsim alloy_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-dramsim-idealbalanced_2G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D-dramsim idealbalanced_2G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-dramsim-idealbalanced_4G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D-dramsim idealbalanced_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-dramsim-idealfully_2G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D-dramsim idealfully_2G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-dramsim-idealfully_4G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D-dramsim idealfully_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-dramsim-ndc-0_2G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D-dramsim ndc-0_2G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-dramsim-ndc-0_4G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D-dramsim ndc-0_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-dramsim-ndc-3_2G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D-dramsim ndc-3_2G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-dramsim-ndc-3_4G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D-dramsim ndc-3_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

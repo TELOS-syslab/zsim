@@ -7,12 +7,12 @@
 #include "mc.h"
 
 // Update LRU state when a way is accessed - O(1) operation
-void IdealFullyScheme::updateLRU(uint32_t way) {
+void IdealFullyScheme::updateLRU(uint64_t way) {
     if (way == _mru_way) return;  // Already MRU
 
     // Remove from current position
-    uint32_t prev = _lru_array[way].prev;
-    uint32_t next = _lru_array[way].next;
+    uint64_t prev = _lru_array[way].prev;
+    uint64_t next = _lru_array[way].next;
     _lru_array[prev].next = next;
     _lru_array[next].prev = prev;
 
@@ -21,7 +21,7 @@ void IdealFullyScheme::updateLRU(uint32_t way) {
     }
 
     // Insert at MRU position
-    uint32_t old_prev_of_mru = _lru_array[_mru_way].prev;  // Store this before modifying
+    uint64_t old_prev_of_mru = _lru_array[_mru_way].prev;  // Store this before modifying
     _lru_array[way].next = _mru_way;
     _lru_array[way].prev = old_prev_of_mru;
     _lru_array[_mru_way].prev = way;
@@ -30,7 +30,7 @@ void IdealFullyScheme::updateLRU(uint32_t way) {
 }
 
 // Get the least recently used way - O(1) operation
-uint32_t IdealFullyScheme::getLRUWay() {
+uint64_t IdealFullyScheme::getLRUWay() {
     return _lru_way;
 }
 
@@ -54,7 +54,7 @@ uint64_t IdealFullyScheme::access(MemReq& req) {
     // info("phy_addr = 0x%lx, cache_addr = 0x%lx, set_num = %ld, tag = 0x%lx, line_num = %ld\n", address, mc_address, set_num, tag, line_num);
 
     // Check for cache hit
-    uint32_t hit_way = _num_ways;
+    uint64_t hit_way = _num_ways;
     if (_line_entries[line_num].way < _num_ways) {
         hit_way = _line_entries[line_num].way;
         if (!(_cache[set_num].ways[hit_way].valid && _cache[set_num].ways[hit_way].tag == tag)) {
@@ -91,7 +91,7 @@ uint64_t IdealFullyScheme::access(MemReq& req) {
             _ext_bw_per_step += 4;
 
             // Select victim way using LRU policy
-            uint32_t victim_way;
+            uint64_t victim_way;
             // Get the least recently used way
             victim_way = getLRUWay();
             _line_entries[line_num].way = victim_way;
@@ -137,7 +137,7 @@ uint64_t IdealFullyScheme::access(MemReq& req) {
             _numStoreMiss.inc();
 
             // Select victim way using LRU policy
-            uint32_t victim_way;
+            uint64_t victim_way;
             // Get the least recently used way
             victim_way = getLRUWay();
             _line_entries[line_num].way = victim_way;
@@ -199,7 +199,7 @@ void IdealFullyScheme::period(MemReq& req) {
                     for (uint64_t set = _ds_index; set < (uint64_t)(_ds_index + delta_index); set++) {
                         if (set >= _num_sets) break;
 
-                        for (uint32_t way = 0; way < _num_ways; way++) {
+                        for (uint64_t way = 0; way < _num_ways; way++) {
                             Way& meta = _cache[set].ways[way];
                             if (meta.valid && meta.dirty) {
                                 // Write back to external DRAM

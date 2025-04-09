@@ -24,12 +24,12 @@ class IdealFullyScheme : public CacheScheme {
     
     // Array-based LRU tracking
     struct LRUEntry {
-        uint32_t prev;  // Previous way in LRU order
-        uint32_t next;  // Next way in LRU order
+        uint64_t prev;  // Previous way in LRU order
+        uint64_t next;  // Next way in LRU order
     };
     LRUEntry* _lru_array;  // Array of LRU entries indexed by way
-    uint32_t _mru_way;     // Most recently used way
-    uint32_t _lru_way;     // Least recently used way
+    uint64_t _mru_way;     // Most recently used way
+    uint64_t _lru_way;     // Least recently used way
 
     static const uint32_t MAX_ADDR_BITS = 58;  // 64 - 6 bits for cache line offset
 
@@ -51,7 +51,7 @@ class IdealFullyScheme : public CacheScheme {
         
         // Initialize LRU array
         _lru_array = new LRUEntry[_num_ways];
-        for (uint32_t i = 0; i < _num_ways; i++) {
+        for (uint64_t i = 0; i < _num_ways; i++) {
             _lru_array[i].prev = (i > 0) ? i-1 : _num_ways-1;
             _lru_array[i].next = (i < _num_ways-1) ? i+1 : 0;
         }
@@ -64,10 +64,10 @@ class IdealFullyScheme : public CacheScheme {
     void initStats(AggregateStat* parentStat) override;
     
     // Helper method to update LRU state
-    void updateLRU(uint32_t way);
+    void updateLRU(uint64_t way);
     
     // Helper method to get the LRU way
-    uint32_t getLRUWay();
+    uint64_t getLRUWay();
 };
 
 #endif
