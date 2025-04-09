@@ -29,8 +29,20 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
         // info("!!!!!hit:  _cache[set_num].ways[0].tag = %ld",  _cache[set_num].ways[0].tag);
     }
 
-    // Handle tag access for loads
-    if (type == LOAD && set_num >= _ds_index) {
+    // N.B. Banshee's code, but not considering the tag access for store
+    /* if (type == LOAD && set_num >= _ds_index) {
+        if (_sram_tag) {
+            req.cycle += _llc_latency;
+        } else {
+            req.lineAddr = mc_address;
+            req.cycle = _mc->_mcdram[mcdram_select]->access(req, 0, 6);
+            _mc_bw_per_step += 6;
+            _numTagLoad.inc();
+            req.lineAddr = address;
+        }
+    } */
+
+    if (set_num >= _ds_index) {
         if (_sram_tag) {
             req.cycle += _llc_latency;
         } else {
@@ -53,7 +65,7 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
         }
         if (type == STORE) {
             MemReq write_req = {mc_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-            req.cycle = _mc->_mcdram[mcdram_select]->access(write_req, 0, 4);
+            req.cycle = _mc->_mcdram[mcdram_select]->access(write_req, 1, 4);
             _mc_bw_per_step += 4;
             _cache[set_num].ways[hit_way].dirty = true;
             _numStoreHit.inc();
@@ -85,18 +97,16 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
                 req.cycle = _mc->_ext_dram->access(req, 0, 4);
             }
             _ext_bw_per_step += 4;
-            data_ready_cycle = req.cycle;
         } else if (type == STORE && replace_way >= _num_ways) {
             req.cycle = _mc->_ext_dram->access(req, 0, 4);
             _ext_bw_per_step += 4;
-            data_ready_cycle = req.cycle;
         } else if (type == STORE) {
-            MemReq load_req = {address, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+            // N.B. Banshee's code, but we don't need to load data from the external DRAM for store with cacheline granularity
+            /* MemReq load_req = {address, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
             req.cycle = _mc->_ext_dram->access(load_req, 0, 4);
-            _ext_bw_per_step += 4;
-            data_ready_cycle = req.cycle;
+            _ext_bw_per_step += 4; */
         }
-
+        data_ready_cycle = req.cycle;
         // Handle replacement
         if (replace_way < _num_ways) {
             MemReq insert_req = {mc_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
@@ -109,10 +119,9 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
             if (_cache[set_num].ways[replace_way].valid) {
                 if (_cache[set_num].ways[replace_way].dirty) {
                     _numDirtyEviction.inc();
-                    /* if (type == STORE && _sram_tag) // Banshee's code, but why? */ 
-                    if (type == STORE) {
+                    if (type == STORE && _sram_tag) {
                         MemReq load_req = {mc_address, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-                        req.cycle = _mc->_mcdram[mcdram_select]->access(load_req, 2, 4);
+                        _mc->_mcdram[mcdram_select]->access(load_req, 2, 4);
                         _mc_bw_per_step += 4;
                     }
                     MemReq wb_req = {_cache[set_num].ways[replace_way].tag, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};

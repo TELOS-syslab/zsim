@@ -1,0 +1,52 @@
+[
+  {
+    "name": "cc-twitter-dramsim-alloy_2G_16G",
+    "command": "./utils/run.sh benchmarks-ff cc-twitter-dramsim alloy_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cc-twitter-dramsim-alloy_4G_16G",
+    "command": "./utils/run.sh benchmarks-ff cc-twitter-dramsim alloy_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cc-twitter-dramsim-idealbalanced_2G_16G",
+    "command": "./utils/run.sh benchmarks-ff cc-twitter-dramsim idealbalanced_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cc-twitter-dramsim-idealbalanced_4G_16G",
+    "command": "./utils/run.sh benchmarks-ff cc-twitter-dramsim idealbalanced_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cc-twitter-dramsim-idealfully_2G_16G",
+    "command": "./utils/run.sh benchmarks-ff cc-twitter-dramsim idealfully_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cc-twitter-dramsim-idealfully_4G_16G",
+    "command": "./utils/run.sh benchmarks-ff cc-twitter-dramsim idealfully_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cc-twitter-dramsim-ndc-0_2G_16G",
+    "command": "./utils/run.sh benchmarks-ff cc-twitter-dramsim ndc-0_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cc-twitter-dramsim-ndc-0_4G_16G",
+    "command": "./utils/run.sh benchmarks-ff cc-twitter-dramsim ndc-0_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cc-twitter-dramsim-ndc-3_2G_16G",
+    "command": "./utils/run.sh benchmarks-ff cc-twitter-dramsim ndc-3_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cc-twitter-dramsim-ndc-3_4G_16G",
+    "command": "./utils/run.sh benchmarks-ff cc-twitter-dramsim ndc-3_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

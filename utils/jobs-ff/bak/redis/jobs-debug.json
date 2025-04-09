@@ -1,7 +1,0 @@
-[
-  {
-    "name": "redis-alloy_8G_32G",
-    "command": "./utils/run.sh benchmarks redis alloy_2G_16G",
-    "working_dir": "~/chunk/git/git-own/zsim/"
-  }
-]

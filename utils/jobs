@@ -151,11 +151,22 @@ def setup_output_capture(session_name):
     output_file = os.path.join(OUTPUT_CAPTURE_DIR, f"{session_name}.log")
     
     try:
+        # Create an empty file first to ensure permissions are correct
+        with open(output_file, 'w') as f:
+            pass
+            
+        # Use a more reliable pipe-pane command
         subprocess.run([
             'tmux', 'pipe-pane', '-t', f"{session_name}:0.0", 
-            f'cat >> {output_file}'
+            f"cat >> '{output_file}'"
         ])
-        return output_file
+        
+        # Verify the file exists
+        if os.path.exists(output_file):
+            return output_file
+        else:
+            print(f"Warning: Output file not created at {output_file}")
+            return None
     except Exception as e:
         print(f"Warning: Failed to set up output capture for '{session_name}': {e}")
         return None

@@ -754,7 +754,9 @@ def handle_single_point_plot(ax, x, y, label, color, line_style='-', alpha=0.7, 
 def plot_cache_rate_trend(read_hit_rates: List[float], read_miss_rates: List[float], 
                          total_hit_rates: List[float],
                          zsim_dir: str, cache_name: str, window_size: int, step: int,
-                         plot_path: str, x_values: np.ndarray, x_type: str):
+                         plot_path: str, x_values: np.ndarray, x_type: str,
+                         ffi_points: List[int],  # Add ffi_points
+                         warmup_instrs: int):  # Add warmup_instrs
     """Plot hit rate and miss rate trends using publication-quality style."""
     try:
         # Check if we have any valid data points after windowing
@@ -808,6 +810,17 @@ def plot_cache_rate_trend(read_hit_rates: List[float], read_miss_rates: List[flo
         ax.set_ylim(-0.02, 1.02)
         ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
         
+        # Add text annotations for ffiPoints and warmupInstrs (use only first FFI point)
+        text_str = f"Warmup Instructions: {warmup_instrs:.2e}\n"
+        if ffi_points and len(ffi_points) > 0:
+            text_str += f"FFI Point: {float(ffi_points[0]):.2e}"
+        else:
+            text_str += "FFI Point: None"
+        
+        # Place a text box in upper left in axes coords
+        ax.text(0.02, 0.98, text_str, transform=ax.transAxes, fontsize=10,
+                verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
+        
         box = ax.get_position()
         ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
         ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
@@ -827,7 +840,9 @@ def plot_cache_rate_trend(read_hit_rates: List[float], read_miss_rates: List[flo
             'read_miss_rates': read_miss_rates,
             'total_hit_rates': total_hit_rates,
             'x': x_values.tolist(),
-            'x_label': x_label
+            'x_label': x_label,
+            'ffi_points': ffi_points,  # Save ffi_points
+            'warmup_instrs': warmup_instrs  # Save warmup_instrs
         }, output_filename, plot_path)
         
         print(f"Plot saved to: {output_filename}")
@@ -838,7 +853,9 @@ def plot_cache_rate_trend(read_hit_rates: List[float], read_miss_rates: List[flo
         print(f"Error creating plot: {e}")
 
 
-def plot_ipc_trend(ipc_data, overall_ipc, zsim_dir, window_size, step, plot_path, x_values=None, x_type='phase'):
+def plot_ipc_trend(ipc_data, overall_ipc, zsim_dir, window_size, step, plot_path, x_values=None, x_type='phase',
+                   ffi_points: List[int] = [],  # Add ffi_points
+                   warmup_instrs: int = 0):  # Add warmup_instrs
     """Plot IPC trends with publication-quality style."""
     try:
         # Check if we have any valid data points after windowing
@@ -905,6 +922,17 @@ def plot_ipc_trend(ipc_data, overall_ipc, zsim_dir, window_size, step, plot_path
         ax.set_title(f'Instructions Per Cycle\n(Window Size: {window_size}, Step: {step})')
         ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
         
+        # Add text annotations for ffiPoints and warmupInstrs (use only first FFI point)
+        text_str = f"Warmup Instructions: {warmup_instrs:.2e}\n"
+        if ffi_points and len(ffi_points) > 0:
+            text_str += f"FFI Point: {float(ffi_points[0]):.2e}"
+        else:
+            text_str += "FFI Point: None"
+        
+        # Place a text box in upper left in axes coords
+        ax.text(0.02, 0.98, text_str, transform=ax.transAxes, fontsize=10,
+                verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
+
         box = ax.get_position()
         ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
         ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
@@ -922,7 +950,9 @@ def plot_ipc_trend(ipc_data, overall_ipc, zsim_dir, window_size, step, plot_path
             'ipc_data': ipc_data,
             'overall_ipc': overall_ipc,
             'x': x_values.tolist(),
-            'x_label': x_label
+            'x_label': x_label,
+            'ffi_points': ffi_points,  # Save ffi_points
+            'warmup_instrs': warmup_instrs  # Save warmup_instrs
         }, output_filename, plot_path)
         
         print(f"Plot saved to: {output_filename}")
@@ -931,6 +961,170 @@ def plot_ipc_trend(ipc_data, overall_ipc, zsim_dir, window_size, step, plot_path
         
     except Exception as e:
         print(f"Error creating IPC plot: {e}")
+
+
+def calculate_cache_util_trend(values, total, window_size, rate_type, step):
+    if len(values) != len(total):
+        raise ValueError("Values and total lists must have the same length")
+
+    # Convert to numpy arrays, handling None values
+    values_array = np.array([float(v) if v is not None else np.nan for v in values])
+    total_array = np.array([float(t) if t is not None else np.nan for t in total])
+
+    # Calculate differences if tracking changes over time
+    values_diff = np.diff(values_array, prepend=0)
+    
+    # Initialize result array
+    rates = np.full(len(values), np.nan)
+    
+    # Calculate rates for each window with the given step size
+    for i in range(0, len(values), step):
+        if i >= window_size - 1:
+            # Get window slice
+            window_slice = slice(max(0, i - window_size + 1), i + 1)
+            
+            # Calculate based on rate type
+            if rate_type in ['cache_util', 'cache_reaccess']:
+                if not np.isnan(total_array[i]) and total_array[i] > 0:
+                    rates[i] = (values_array[i] / total_array[i])
+            
+            elif rate_type in ['ext_mem_util', 'ext_pages_util']:
+                if not np.isnan(total_array[i]) and total_array[i] > 0:
+                    rates[i] = (values_array[i] / total_array[i])
+
+    return rates.tolist()
+
+
+def plot_cache_util_trend(cache_util_rates: List[float], 
+                         cache_reaccess_rates: List[float],
+                         ext_mem_rates: List[float],
+                         ext_pages_rates: List[float],
+                         zsim_dir: str, cache_name: str, 
+                         window_size: int, step: int,
+                         plot_path: str, 
+                         x_values: np.ndarray, 
+                         x_type: str,
+                         ffi_points: List[int],  # Add ffi_points
+                         warmup_instrs: int):  # Add warmup_instrs
+    """Plot all utilization trends in a single figure using publication-quality style."""
+    try:
+        # Check if we have any valid data points after windowing
+        has_data = any([
+            check_valid_data_points(rates, window_size, step)
+            for rates in [cache_util_rates, cache_reaccess_rates, ext_mem_rates, ext_pages_rates]
+        ])
+        
+        if not has_data:
+            output_filename = get_output_name(zsim_dir, cache_name=cache_name, 
+                                           stat_type='util', window_size=window_size,
+                                           step=step)
+            title = f'Memory System Utilization: {cache_name}\n(Window Size: {window_size}, Step: {step})'
+            plot_warning_graph(plot_path, output_filename, title)
+            return
+
+        # Update x_values length to match data length
+        data_length = len(cache_util_rates)
+        if len(x_values) > data_length:
+            x_values = x_values[:data_length]
+        elif len(x_values) < data_length:
+            x_values = np.pad(x_values, (0, data_length - len(x_values)), 'edge')
+
+        # Only plot points that meet the window size requirement
+        valid_indices = [i for i in range(0, data_length, step) if i >= window_size - 1]
+        if not valid_indices:
+            reason = f"No valid data points with window={window_size} and step={step}.\nTry smaller values."
+            plot_warning_graph(plot_path, output_filename, title, reason)
+            return
+
+        setup_plot_style()
+        
+        # Create single figure
+        fig = plt.figure(figsize=(12, 6))
+        ax = fig.add_subplot(111)
+        
+        # Get valid data points
+        x_plot = x_values[valid_indices]
+        
+        # Force y-axis to go from 0 to 100 to ensure all util data is shown
+        ax.set_ylim(0, 100)
+        
+        # Plot all metrics with different colors and line styles - ensure visibility
+        if any(not math.isnan(rate) for rate in np.array(cache_util_rates)[valid_indices]):
+            handle_single_point_plot(ax, x_plot, 
+                                   np.array(cache_util_rates)[valid_indices]*100,
+                                   'Cache Utilization', '#1f77b4', '-')
+        
+        if any(not math.isnan(rate) for rate in np.array(cache_reaccess_rates)[valid_indices]):
+            handle_single_point_plot(ax, x_plot, 
+                                   np.array(cache_reaccess_rates)[valid_indices]*100,
+                                   'Cache Re-access', '#2ca02c', '--')
+        
+        if any(not math.isnan(rate) for rate in np.array(ext_mem_rates)[valid_indices]):
+            handle_single_point_plot(ax, x_plot, 
+                                   np.array(ext_mem_rates)[valid_indices]*100,
+                                   'Ext Memory Utilization', '#ff7f0e', ':', linewidth=2.0)
+        
+        if any(not math.isnan(rate) for rate in np.array(ext_pages_rates)[valid_indices]):
+            handle_single_point_plot(ax, x_plot, 
+                                   np.array(ext_pages_rates)[valid_indices]*100,
+                                   'Ext Pages Utilization', '#d62728', '-.', linewidth=2.0)
+        
+        # Configure axis
+        x_label = 'Billions of Instructions' if x_type == 'instr' else 'Period'
+        ax.set_xlabel(x_label)
+        ax.set_ylabel('Utilization (%)')
+        # Don't use auto-scaling for y-axis to ensure all data is visible
+        ax.set_ylim(-0.02, 100.02)
+        ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
+        
+        # Add text annotations for ffiPoints and warmupInstrs (use only first FFI point)
+        text_str = f"Warmup Instructions: {warmup_instrs:.2e}\n"
+        if ffi_points and len(ffi_points) > 0:
+            text_str += f"FFI Point: {float(ffi_points[0]):.2e}"
+        else:
+            text_str += "FFI Point: None"
+        
+        # Place a text box in upper left in axes coords
+        ax.text(0.02, 0.98, text_str, transform=ax.transAxes, fontsize=10,
+                verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
+        
+        # Place legend outside plot
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5),
+                 frameon=True, edgecolor='black', fancybox=False)
+        
+        ax.set_title(f'Memory System Utilization: {cache_name}\n(Window Size: {window_size}, Step: {step})')
+        
+        # Save plot
+        if not os.path.exists(plot_path):
+            os.makedirs(plot_path)
+            
+        output_filename = get_output_name(zsim_dir, cache_name=cache_name, 
+                                        stat_type='util', window_size=window_size,
+                                        step=step)
+        
+        plt.savefig(os.path.join(plot_path, output_filename), 
+                    bbox_inches='tight', pad_inches=0.1)
+        
+        # Save the data points
+        save_plot_data({
+            'cache_util_rates': cache_util_rates,
+            'cache_reaccess_rates': cache_reaccess_rates,
+            'ext_mem_rates': ext_mem_rates,
+            'ext_pages_rates': ext_pages_rates,
+            'x': x_values.tolist(),
+            'x_label': x_label,
+            'ffi_points': ffi_points,  # Save ffi_points
+            'warmup_instrs': warmup_instrs  # Save warmup_instrs
+        }, output_filename, plot_path)
+        
+        print(f"Plot saved to: {output_filename}")
+        plt.show()
+        plt.close()
+        
+    except Exception as e:
+        print(f"Error creating utilization plot: {e}")
 
 
 def combine_plots(plots_dir: str):
@@ -1040,6 +1234,26 @@ def combine_plots(plots_dir: str):
             fig = plt.figure(figsize=(12, 6))
             ax = fig.add_subplot(111)
             
+            # Add FFI points and warmup instructions info from first available data entry
+            any_data_has_ffi = False
+            for category, (cache_name, date, data, _, _, x_values) in hit_plots[window_size].items():
+                if 'ffi_points' in data and 'warmup_instrs' in data:
+                    ffi_points = data['ffi_points']
+                    warmup_instrs = data['warmup_instrs']
+                    
+                    # Create text string with first FFI point only in scientific notation
+                    text_str = f"Warmup Instructions: {float(warmup_instrs):.2e}\n"
+                    if isinstance(ffi_points, (list, tuple, np.ndarray)) and len(ffi_points) > 0:
+                        text_str += f"FFI Point: {float(ffi_points[0]):.2e}"
+                    else:
+                        text_str += "FFI Point: None"
+                    
+                    # Place text box in upper left
+                    ax.text(0.02, 0.98, text_str, transform=ax.transAxes, fontsize=10,
+                            verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
+                    any_data_has_ffi = True
+                    break
+            
             for category, (cache_name, date, data, _, _, x_values) in hit_plots[window_size].items():
                 hit_rates = data['read_hit_rates'] if 'read_hit_rates' in data else data['hit_rates']
                 # Convert to numpy arrays
@@ -1080,6 +1294,11 @@ def combine_plots(plots_dir: str):
             setup_plot_style()
             fig = plt.figure(figsize=(12, 6))
             ax = fig.add_subplot(111)
+            
+            # Add FFI points and warmup instructions info
+            if any_data_has_ffi:
+                ax.text(0.02, 0.98, text_str, transform=ax.transAxes, fontsize=10,
+                        verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
             
             for category, (cache_name, date, data, _, _, x_values) in hit_plots[window_size].items():
                 if 'total_hit_rates' in data:
@@ -1133,6 +1352,11 @@ def combine_plots(plots_dir: str):
                 fig = plt.figure(figsize=(12, 6))
                 ax = fig.add_subplot(111)
                 
+                # Add FFI points and warmup instructions info
+                if any_data_has_ffi:
+                    ax.text(0.02, 0.98, text_str, transform=ax.transAxes, fontsize=10,
+                            verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
+                
                 for category in sorted(categories):
                     cache_name, date, data, _, _, x_values = hit_plots[window_size][category]
                     hit_rates = data['read_hit_rates'] if 'read_hit_rates' in data else data['hit_rates']
@@ -1172,6 +1396,11 @@ def combine_plots(plots_dir: str):
                 setup_plot_style()
                 fig = plt.figure(figsize=(12, 6))
                 ax = fig.add_subplot(111)
+                
+                # Add FFI points and warmup instructions info
+                if any_data_has_ffi:
+                    ax.text(0.02, 0.98, text_str, transform=ax.transAxes, fontsize=10,
+                            verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
                 
                 has_data = False
                 for category in sorted(categories):
@@ -1220,6 +1449,26 @@ def combine_plots(plots_dir: str):
             setup_plot_style()
             fig = plt.figure(figsize=(12, 6))
             ax = fig.add_subplot(111)
+            
+            # Add FFI points and warmup instructions info from first available data entry
+            any_data_has_ffi = False
+            for category, (date, data, _, x_values) in ipc_plots[window_size].items():
+                if 'ffi_points' in data and 'warmup_instrs' in data:
+                    ffi_points = data['ffi_points']
+                    warmup_instrs = data['warmup_instrs']
+                    
+                    # Create text string with first FFI point only in scientific notation
+                    text_str = f"Warmup Instructions: {float(warmup_instrs):.2e}\n"
+                    if isinstance(ffi_points, (list, tuple, np.ndarray)) and len(ffi_points) > 0:
+                        text_str += f"FFI Point: {float(ffi_points[0]):.2e}"
+                    else:
+                        text_str += "FFI Point: None"
+                    
+                    # Place text box in upper left
+                    ax.text(0.02, 0.98, text_str, transform=ax.transAxes, fontsize=10,
+                            verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
+                    any_data_has_ffi = True
+                    break
             
             # Find the range of x values across all data
             x_min, x_max = float('inf'), float('-inf')
@@ -1282,6 +1531,11 @@ def combine_plots(plots_dir: str):
                 fig = plt.figure(figsize=(12, 6))
                 ax = fig.add_subplot(111)
                 
+                # Add FFI points and warmup instructions info
+                if any_data_has_ffi:
+                    ax.text(0.02, 0.98, text_str, transform=ax.transAxes, fontsize=10,
+                            verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
+                
                 for category in sorted(categories):
                     date, data, _, x_values = ipc_plots[window_size][category]
                     ipc_values = np.array(data['overall_ipc'])
@@ -1327,6 +1581,26 @@ def combine_plots(plots_dir: str):
             fig = plt.figure(figsize=(12, 6))
             ax = fig.add_subplot(111)
             
+            # Add FFI points and warmup instructions info from first available data entry
+            any_data_has_ffi = False
+            for category, (cache_name, date, data, _, _, x_values) in util_plots[window_size].items():
+                if 'ffi_points' in data and 'warmup_instrs' in data:
+                    ffi_points = data['ffi_points']
+                    warmup_instrs = data['warmup_instrs']
+                    
+                    # Create text string with first FFI point only in scientific notation
+                    text_str = f"Warmup Instructions: {float(warmup_instrs):.2e}\n"
+                    if isinstance(ffi_points, (list, tuple, np.ndarray)) and len(ffi_points) > 0:
+                        text_str += f"FFI Point: {float(ffi_points[0]):.2e}"
+                    else:
+                        text_str += "FFI Point: None"
+                    
+                    # Place text box in upper left
+                    ax.text(0.02, 0.98, text_str, transform=ax.transAxes, fontsize=10,
+                            verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
+                    any_data_has_ffi = True
+                    break
+            
             # Plot all categories' utilization data
             for category, (cache_name, date, data, _, _, x_values) in util_plots[window_size].items():
                 x_plot = np.array(x_values)
@@ -1361,7 +1635,7 @@ def combine_plots(plots_dir: str):
                         else:  # Multiple points
                             ax.plot(x_plot[::step_size], ext_mem[::step_size], '--', 
                                    label=f'{category} ExtMem', color=category_colors[category],
-                                   alpha=0.7, linewidth=1.5)
+                                   alpha=0.8, linewidth=2.0)
             
             ax.set_xlabel(x_label)
             ax.set_ylabel('Utilization (%)')
@@ -1393,6 +1667,11 @@ def combine_plots(plots_dir: str):
                 setup_plot_style()
                 fig = plt.figure(figsize=(12, 6))
                 ax = fig.add_subplot(111)
+                
+                # Add FFI points and warmup instructions info
+                if any_data_has_ffi:
+                    ax.text(0.02, 0.98, text_str, transform=ax.transAxes, fontsize=10,
+                            verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
                 
                 for category in sorted(categories):
                     cache_name, date, data, _, _, x_values = util_plots[window_size][category]
@@ -1428,7 +1707,7 @@ def combine_plots(plots_dir: str):
                             else:  # Multiple points
                                 ax.plot(x_plot[::step_size], ext_mem[::step_size], '--', 
                                        label=f'{category} ExtMem', color=color,
-                                       alpha=0.7, linewidth=1.5)
+                                       alpha=0.8, linewidth=2.0)
                 
                 ax.set_xlabel(x_label)
                 ax.set_ylabel('Utilization (%)')
@@ -1446,7 +1725,7 @@ def combine_plots(plots_dir: str):
                 plt.close()
 
 
-def calculate_cache_util_trend(values, total, window_size, rate_type, step):
+def calculate_cache_util_trend_bak(values, total, window_size, rate_type, step):
     if len(values) != len(total):
         raise ValueError("Values and total lists must have the same length")
 
@@ -1478,7 +1757,7 @@ def calculate_cache_util_trend(values, total, window_size, rate_type, step):
     return rates.tolist()
 
 
-def plot_cache_util_trend(cache_util_rates: List[float], 
+def plot_cache_util_trend_bak(cache_util_rates: List[float], 
                          cache_reaccess_rates: List[float],
                          ext_mem_rates: List[float],
                          ext_pages_rates: List[float],
@@ -1486,7 +1765,9 @@ def plot_cache_util_trend(cache_util_rates: List[float],
                          window_size: int, step: int,
                          plot_path: str, 
                          x_values: np.ndarray, 
-                         x_type: str):
+                         x_type: str,
+                         ffi_points: List[int],  # Add ffi_points
+                         warmup_instrs: int):  # Add warmup_instrs
     """Plot all utilization trends in a single figure using publication-quality style."""
     try:
         # Check if we have any valid data points after windowing
@@ -1547,6 +1828,14 @@ def plot_cache_util_trend(cache_util_rates: List[float],
         ax.set_ylim(-0.02, 100.02)
         ax.grid(True, linestyle=':', alpha=0.5, color='#cccccc')
         
+        # Add text annotations for ffiPoints and warmupInstrs
+        text_str = f"Warmup Instructions: {warmup_instrs:.2e}\n"
+        text_str += f"FFI Points: {ffi_points}"
+        
+        # Place a text box in upper left in axes coords
+        ax.text(0.02, 0.98, text_str, transform=ax.transAxes, fontsize=10,
+                verticalalignment='top', bbox=dict(facecolor='white', alpha=0.7))
+        
         # Place legend outside plot
         box = ax.get_position()
         ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
@@ -1573,7 +1862,9 @@ def plot_cache_util_trend(cache_util_rates: List[float],
             'ext_mem_rates': ext_mem_rates,
             'ext_pages_rates': ext_pages_rates,
             'x': x_values.tolist(),
-            'x_label': x_label
+            'x_label': x_label,
+            'ffi_points': ffi_points,  # Save ffi_points
+            'warmup_instrs': warmup_instrs  # Save warmup_instrs
         }, output_filename, plot_path)
         
         print(f"Plot saved to: {output_filename}")
@@ -1582,6 +1873,52 @@ def plot_cache_util_trend(cache_util_rates: List[float],
         
     except Exception as e:
         print(f"Error creating utilization plot: {e}")
+
+
+def read_config(filepath):
+    """
+    Reads the out.cfg file, extracts ffiPoints and warmupInstrs.
+    Returns a dictionary containing the extracted parameters.
+    """
+    config = {}
+    config['ffiPoints'] = []
+    config['warmupInstrs'] = 0
+
+    try:
+        cfg_path = os.path.dirname(filepath) + "/out.cfg"
+        with open(cfg_path, 'r') as f:
+            content = f.read()
+            
+            # Parse ffiPoints using a more robust regex approach
+            ffi_match = re.search(r'ffiPoints\s*=\s*"([^"]+)"', content)
+            if ffi_match:
+                ffi_str = ffi_match.group(1)
+                try:
+                    # Clean up the string and convert to integers
+                    ffi_str = ffi_str.replace(';', '').strip()
+                    config['ffiPoints'] = [int(x) for x in ffi_str.split()]
+                    print(f"Successfully parsed ffiPoints: {config['ffiPoints']}")
+                except ValueError as e:
+                    print(f"Warning: Could not parse ffiPoints: {e}")
+                    config['ffiPoints'] = []
+            
+            # Parse warmupInstrs
+            warmup_match = re.search(r'warmupInstrs\s*=\s*(\d+)L?;?', content)
+            if warmup_match:
+                try:
+                    # Extract just the digits
+                    warmup_str = warmup_match.group(1)
+                    config['warmupInstrs'] = int(warmup_str)
+                    print(f"Successfully parsed warmupInstrs: {config['warmupInstrs']}")
+                except ValueError as e:
+                    print(f"Warning: Could not parse warmupInstrs: {e}")
+                    config['warmupInstrs'] = 0
+    except FileNotFoundError:
+        print(f"Warning: Config file not found: {cfg_path}")
+    except Exception as e:
+        print(f"Error reading config file: {e}")
+    
+    return config
 
 
 def main():
@@ -1683,6 +2020,14 @@ def main():
         
         data = parse_zsim_output(zsim_file, use_h5=use_h5)
 
+        # Read config file to get ffiPoints and warmupInstrs
+        config = read_config(zsim_file)
+        ffi_points = config.get('ffiPoints', [])
+        warmup_instrs = config.get('warmupInstrs', 0)
+
+        print(f"FFI Points: {ffi_points}")
+        print(f"Warmup Instructions: {warmup_instrs}")
+
         cache_paths = find_cache_paths(data)
         
         if not cache_paths:
@@ -1770,7 +2115,9 @@ def main():
                     
                 plot_cache_rate_trend(read_hit_rates, read_miss_rates, total_hit_rates,
                                     zsim_dir, cache_name, window_size, step, plot_path,
-                                    x_values=x_values, x_type=rate_type)
+                                    x_values=x_values, x_type=rate_type,
+                                    ffi_points=ffi_points,  # Pass the ffi_points variable
+                                    warmup_instrs=warmup_instrs)  # Pass the warmup_instrs variable
             except Exception as e:
                 print(f"Unable to create plot: {e}")
 
@@ -1784,6 +2131,14 @@ def main():
                                                                          window_size, step, 
                                                                          use_h5=use_h5,
                                                                          rate_type=rate_type)
+        # Read config file to get ffiPoints and warmupInstrs
+        config = read_config(zsim_file)
+        ffi_points = config.get('ffiPoints', [])
+        warmup_instrs = config.get('warmupInstrs', 0)
+
+        print(f"FFI Points: {ffi_points}")
+        print(f"Warmup Instructions: {warmup_instrs}")
+
         if not ipc_data:
             print("No core paths found with cycles, and instrs stats")
             sys.exit(1)
@@ -1805,7 +2160,9 @@ def main():
         # Plot if requested
         if plot_enabled:
             plot_ipc_trend(ipc_data, overall_ipc, zsim_dir, window_size, step, plot_path,
-                          x_values=x_values, x_type=actual_rate_type)
+                          x_values=x_values, x_type=actual_rate_type,
+                          ffi_points=ffi_points,  # Pass the ffi_points variable 
+                          warmup_instrs=warmup_instrs)  # Pass the warmup_instrs variable
 
     elif stat_type == "util":
         print(f"Calculating utilization statistics for {zsim_dir}...")
@@ -1814,6 +2171,15 @@ def main():
             sys.exit(1)
             
         data = parse_zsim_output(zsim_file, use_h5=use_h5)
+
+        # Read config file to get ffiPoints and warmupInstrs
+        config = read_config(zsim_file)
+        ffi_points = config.get('ffiPoints', [])
+        warmup_instrs = config.get('warmupInstrs', 0)
+
+        print(f"FFI Points: {ffi_points}")
+        print(f"Warmup Instructions: {warmup_instrs}")
+
         cache_paths = find_cache_paths(data)
         
         if not cache_paths:
@@ -1887,7 +2253,9 @@ def main():
                     
                 plot_cache_util_trend(cache_util_rates, cache_reaccess_rates, ext_mem_util_rates, ext_pages_util_rates,
                                     zsim_dir, cache_name, window_size, step, plot_path,
-                                    x_values=x_values, x_type=rate_type)
+                                    x_values=x_values, x_type=rate_type,
+                                    ffi_points=ffi_points,  # Pass ffi_points
+                                    warmup_instrs=warmup_instrs)  # Pass warmup_instrs
             except Exception as e:
                 print(f"Unable to create plot: {e}")
 

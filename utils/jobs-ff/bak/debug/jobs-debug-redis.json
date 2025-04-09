@@ -1,7 +1,0 @@
-[
-  {
-    "name": "debug-redis-alloy_1G_16G",
-    "command": "./utils/run.sh benchmarks debug alloy_1G_16G_redis",
-    "working_dir": "~/chunk/git/git-own/zsim/"
-  }
-]

@@ -1,0 +1,52 @@
+[
+  {
+    "name": "cg.D-alloy_8G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D alloy_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-alloy_4G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D alloy_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-idealbalanced_8G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D idealbalanced_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-idealbalanced_4G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D idealbalanced_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-idealfully_8G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D idealfully_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-idealfully_4G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D idealfully_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-ndc-0_8G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D ndc-0_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-ndc-0_4G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D ndc-0_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-ndc-3_8G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D ndc-3_8G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "cg.D-ndc-3_4G_32G",
+    "command": "./utils/run.sh benchmarks-ff cg.D ndc-3_4G_32G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

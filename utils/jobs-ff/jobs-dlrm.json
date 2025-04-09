@@ -1,0 +1,52 @@
+[
+  {
+    "name": "dlrm-alloy_2G_8G",
+    "command": "./utils/run.sh benchmarks-ff dlrm alloy_2G_8G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-alloy_1G_8G",
+    "command": "./utils/run.sh benchmarks-ff dlrm alloy_1G_8G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-idealbalanced_2G_8G",
+    "command": "./utils/run.sh benchmarks-ff dlrm idealbalanced_2G_8G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-idealbalanced_1G_8G",
+    "command": "./utils/run.sh benchmarks-ff dlrm idealbalanced_1G_8G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-idealfully_2G_8G",
+    "command": "./utils/run.sh benchmarks-ff dlrm idealfully_2G_8G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-idealfully_1G_8G",
+    "command": "./utils/run.sh benchmarks-ff dlrm idealfully_1G_8G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-ndc-0_2G_8G",
+    "command": "./utils/run.sh benchmarks-ff dlrm ndc-0_2G_8G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-ndc-0_1G_8G",
+    "command": "./utils/run.sh benchmarks-ff dlrm ndc-0_1G_8G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-ndc-3_2G_8G",
+    "command": "./utils/run.sh benchmarks-ff dlrm ndc-3_2G_8G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "dlrm-ndc-3_1G_8G",
+    "command": "./utils/run.sh benchmarks-ff dlrm ndc-3_1G_8G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]
