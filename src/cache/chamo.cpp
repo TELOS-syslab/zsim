@@ -343,7 +343,13 @@ uint64_t CHAMOScheme::access(MemReq& req) {
 
             // Handle eviction if victim is dirty
             if (_cache[set_num].ways[victim_way].valid && _cache[set_num].ways[victim_way].dirty) {
-                Address wb_address = _cache[set_num].ways[victim_way].tag * _granularity;
+                // N.B. Load line from dram cache before write-back.
+                Address victim_address = mc_address; // pseudo-address
+                MemReq read_req = {victim_address, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+                _mc->_mcdram[mcdram_select]->access(read_req, 2, 4);
+                _mc_bw_per_step += 4;
+
+                Address wb_address = _cache[set_num].ways[victim_way].tag;
                 MemReq wb_req = {wb_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
                 _mc->_ext_dram->access(wb_req, 2, 4);  // Write-back to main memory
                 _ext_bw_per_step += 4;
@@ -378,7 +384,13 @@ uint64_t CHAMOScheme::access(MemReq& req) {
 
             // Handle eviction if victim is dirty
             if (_cache[set_num].ways[victim_way].valid && _cache[set_num].ways[victim_way].dirty) {
-                Address wb_address = _cache[set_num].ways[victim_way].tag * _granularity;
+                // N.B. Load line from dram cache before write-back.
+                Address victim_address = mc_address; // pseudo-address
+                MemReq read_req = {victim_address, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+                _mc->_mcdram[mcdram_select]->access(read_req, 2, 4);
+                _mc_bw_per_step += 4;
+
+                Address wb_address = _cache[set_num].ways[victim_way].tag;
                 MemReq wb_req = {wb_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
                 _mc->_ext_dram->access(wb_req, 2, 4);  // Write-back to main memory, non-critical
                 _ext_bw_per_step += 4;
