@@ -1,0 +1,52 @@
+[
+  {
+    "name": "btree-dramsim-alloy_1G_16G",
+    "command": "./utils/run.sh benchmarks-ff btree-dramsim alloy_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-dramsim-alloy_2G_16G",
+    "command": "./utils/run.sh benchmarks-ff btree-dramsim alloy_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-dramsim-idealbalanced_1G_16G",
+    "command": "./utils/run.sh benchmarks-ff btree-dramsim idealbalanced_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-dramsim-idealbalanced_2G_16G",
+    "command": "./utils/run.sh benchmarks-ff btree-dramsim idealbalanced_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-dramsim-idealfully_1G_16G",
+    "command": "./utils/run.sh benchmarks-ff btree-dramsim idealfully_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-dramsim-idealfully_2G_16G",
+    "command": "./utils/run.sh benchmarks-ff btree-dramsim idealfully_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-dramsim-ndc-0_1G_16G",
+    "command": "./utils/run.sh benchmarks-ff btree-dramsim ndc-0_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-dramsim-ndc-0_2G_16G",
+    "command": "./utils/run.sh benchmarks-ff btree-dramsim ndc-0_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-dramsim-ndc-3_1G_16G",
+    "command": "./utils/run.sh benchmarks-ff btree-dramsim ndc-3_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "btree-dramsim-ndc-3_2G_16G",
+    "command": "./utils/run.sh benchmarks-ff btree-dramsim ndc-3_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

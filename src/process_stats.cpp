@@ -60,6 +60,14 @@ uint64_t ProcessStats::getProcessInstrs(uint32_t p) {
     return processInstrs[p];
 }
 
+uint64_t ProcessStats::getTotalProcessInstrs() {
+    uint64_t total = 0;
+    for (uint32_t p = 0; p < processInstrs.size(); p++) {
+        total += processInstrs[p];
+    }
+    return total;
+}
+
 void ProcessStats::notifyDeschedule(uint32_t cid, uint32_t outgoingPid) {
     assert(cid < lastCoreCycles.size());
     assert(outgoingPid < processCycles.size());

@@ -242,6 +242,9 @@ uint64_t DRAMSim3Memory::access(MemReq &req, int type, uint32_t data_size) {
             panic("!?");
     }
 
+    if (!zinfo->warmup_done)
+        return req.cycle;
+
     uint64_t respCycle = req.cycle;
     if ((req.type != PUTS /*discard clean writebacks*/) && zinfo->eventRecorders[req.srcId]) {
         bool isWrite = (req.type == PUTX);
@@ -337,7 +340,8 @@ uint32_t DRAMSim3Memory::tick(uint64_t cycle) {
     cpuPs += cpuPsPerClk;
     curCycle++;
     if (cpuPs > dramPs) {
-        dramCore->ClockTick();
+        if (zinfo->warmup_done) // inactivate DRAMSim3 before warmup done
+            dramCore->ClockTick();
         dramPs += dramPsPerClk;
         dramCycle++;
     }
