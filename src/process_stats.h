@@ -45,6 +45,7 @@ class ProcessStats : public GlobAlloc {
         // May trigger a global update, should call ONLY when quiesced
         uint64_t getProcessCycles(uint32_t p);
         uint64_t getProcessInstrs(uint32_t p);
+        uint64_t getTotalProcessInstrs();
 
         // Must be called by scheduler when descheduling; core must be quiesced
         void notifyDeschedule(uint32_t cid, uint32_t outgoingPid);

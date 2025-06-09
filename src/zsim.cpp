@@ -1061,11 +1061,28 @@ VOID AfterForkInChild(THREADID tid, const CONTEXT* ctxt, VOID * arg) {
     char header[64];
     snprintf(header, sizeof(header), "[S %dF] ", procIdx); //append an F to distinguish forked from fork/exec'd
     std::stringstream logfile_ss;
-    if (zinfo->category) {
-        logfile_ss << zinfo->outputDir << "/zsim.log." << zinfo->category << "." << procIdx;
-    } else {
-        logfile_ss << zinfo->outputDir << "/zsim.log." << procIdx;
+
+    char date_cbuf[16];
+    time_t thisDate = time(NULL);
+    struct tm *infoDate = localtime(&thisDate);
+    if (infoDate != NULL ) { 
+        std::snprintf(date_cbuf,16, "%04d%02d%02d-%02d%02d%02d", 
+            infoDate->tm_year + 1900, infoDate->tm_mon + 1, infoDate->tm_mday,
+            infoDate->tm_hour, infoDate->tm_min, infoDate->tm_sec);
+    } else { 
+        struct timeval nixTime;
+        gettimeofday(&nixTime, NULL);
+        // wont check the value but another validation wont hurt.
+        std::snprintf(date_cbuf,15, "%ld", nixTime.tv_sec );
     }
+    string timestamp(&date_cbuf[0]);
+
+    if (zinfo->category) {
+        logfile_ss << zinfo->outputDir << "/zsim.log." << timestamp << "." << zinfo->category << "." << procIdx;
+    } else {
+        logfile_ss << zinfo->outputDir << "/zsim.log." << timestamp << "." << procIdx;
+    }
+
     InitLog(header, KnobLogToFile.Value()? logfile_ss.str().c_str() : nullptr);
 
     info("Forked child (tid %d/%d), PID %d, parent PID %d", tid, PIN_ThreadId(), PIN_GetPid(), getppid());
@@ -1459,10 +1476,26 @@ int main(int argc, char *argv[]) {
     char header[64];
     snprintf(header, sizeof(header), "[S %d] ", procIdx);
     std::stringstream logfile_ss;
+
+    char date_cbuf[16];
+    time_t thisDate = time(NULL);
+    struct tm *infoDate = localtime(&thisDate);
+    if (infoDate != NULL ) { 
+        std::snprintf(date_cbuf,16, "%04d%02d%02d-%02d%02d%02d", 
+            infoDate->tm_year + 1900, infoDate->tm_mon + 1, infoDate->tm_mday,
+            infoDate->tm_hour, infoDate->tm_min, infoDate->tm_sec);
+    } else { 
+        struct timeval nixTime;
+        gettimeofday(&nixTime, NULL);
+        // wont check the value but another validation wont hurt.
+        std::snprintf(date_cbuf,15, "%ld", nixTime.tv_sec );
+    }
+    std::string timestamp(&date_cbuf[0]);
+
     if (KnobCategory.Value().c_str()) {
-        logfile_ss << KnobOutputDir.Value() << "/zsim.log." << KnobCategory.Value() << "." << procIdx;
+        logfile_ss << KnobOutputDir.Value() << "/zsim.log." << timestamp << "." << KnobCategory.Value() << "." << procIdx;
     } else {
-        logfile_ss << KnobOutputDir.Value() << "/zsim.log." << procIdx;
+        logfile_ss << KnobOutputDir.Value() << "/zsim.log." << timestamp << "." << procIdx;
     }
     InitLog(header, KnobLogToFile.Value()? logfile_ss.str().c_str() : nullptr);
 

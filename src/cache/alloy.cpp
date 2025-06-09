@@ -15,6 +15,11 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
     MESIState state;
     bool counter_access = false;
 
+    _accessed_ext_lines_set.insert(address);
+    _accessed_ext_lines = _accessed_ext_lines_set.size();
+    _accessed_ext_pages_set.insert(address / (_page_size / 64));
+    _accessed_ext_pages = _accessed_ext_pages_set.size();
+
     // info("access: address = %ld, mc_address = %ld, tag = %ld, set_num = %ld", address, mc_address, tag, set_num);
     // Check for hit
     if (_cache[set_num].ways[0].valid &&
@@ -24,8 +29,20 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
         // info("!!!!!hit:  _cache[set_num].ways[0].tag = %ld",  _cache[set_num].ways[0].tag);
     }
 
-    // Handle tag access for loads
-    if (type == LOAD && set_num >= _ds_index) {
+    // N.B. Banshee's code, but not considering the tag access for store
+    /* if (type == LOAD && set_num >= _ds_index) {
+        if (_sram_tag) {
+            req.cycle += _llc_latency;
+        } else {
+            req.lineAddr = mc_address;
+            req.cycle = _mc->_mcdram[mcdram_select]->access(req, 0, 6);
+            _mc_bw_per_step += 6;
+            _numTagLoad.inc();
+            req.lineAddr = address;
+        }
+    } */
+
+    if (set_num >= _ds_index) {
         if (_sram_tag) {
             req.cycle += _llc_latency;
         } else {
@@ -39,6 +56,7 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
 
     if (hit_way != _num_ways) {
         // Cache hit
+        updateUtilizationStats(set_num, hit_way);
         _num_hit_per_step++;
         if (type == LOAD && _sram_tag) {
             MemReq read_req = {mc_address, GETX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
@@ -47,7 +65,7 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
         }
         if (type == STORE) {
             MemReq write_req = {mc_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-            req.cycle = _mc->_mcdram[mcdram_select]->access(write_req, 0, 4);
+            req.cycle = _mc->_mcdram[mcdram_select]->access(write_req, 1, 4);
             _mc_bw_per_step += 4;
             _cache[set_num].ways[hit_way].dirty = true;
             _numStoreHit.inc();
@@ -79,18 +97,16 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
                 req.cycle = _mc->_ext_dram->access(req, 0, 4);
             }
             _ext_bw_per_step += 4;
-            data_ready_cycle = req.cycle;
         } else if (type == STORE && replace_way >= _num_ways) {
             req.cycle = _mc->_ext_dram->access(req, 0, 4);
             _ext_bw_per_step += 4;
-            data_ready_cycle = req.cycle;
         } else if (type == STORE) {
-            MemReq load_req = {address, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+            // N.B. Banshee's code, but we don't need to load data from the external DRAM for store with cacheline granularity
+            /* MemReq load_req = {address, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
             req.cycle = _mc->_ext_dram->access(load_req, 0, 4);
-            _ext_bw_per_step += 4;
-            data_ready_cycle = req.cycle;
+            _ext_bw_per_step += 4; */
         }
-
+        data_ready_cycle = req.cycle;
         // Handle replacement
         if (replace_way < _num_ways) {
             MemReq insert_req = {mc_address, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
@@ -105,7 +121,7 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
                     _numDirtyEviction.inc();
                     if (type == STORE && _sram_tag) {
                         MemReq load_req = {mc_address, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-                        req.cycle = _mc->_mcdram[mcdram_select]->access(load_req, 2, 4);
+                        _mc->_mcdram[mcdram_select]->access(load_req, 2, 4);
                         _mc_bw_per_step += 4;
                     }
                     MemReq wb_req = {_cache[set_num].ways[replace_way].tag, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
@@ -118,6 +134,7 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
             _cache[set_num].ways[replace_way].valid = true;
             _cache[set_num].ways[replace_way].tag = tag;
             _cache[set_num].ways[replace_way].dirty = (req.type == PUTX);
+            updateUtilizationStats(set_num, replace_way);
         }
     }
 
@@ -134,49 +151,60 @@ uint64_t AlloyCacheScheme::access(MemReq& req) {
 }
 
 void AlloyCacheScheme::period(MemReq& req) {
-    _num_hit_per_step /= 2;
-    _num_miss_per_step /= 2;
-    _mc_bw_per_step /= 2;
-    _ext_bw_per_step /= 2;
+    // Log utilization stats periodically
+    if (_stats_period && _num_requests % _stats_period == 0) {
+        logUtilizationStats();
+        // Reset access counts after logging
+        for (uint64_t i = 0; i < _total_lines; i++) {
+            _line_access_count[i] &= ((1ULL << 32) - 1);
+        }
+    }
+    // Handle bandwidth balance if needed
+    if (_bw_balance && _num_requests % _step_length == 0) {
+        _num_hit_per_step /= 2;
+        _num_miss_per_step /= 2;
+        _mc_bw_per_step /= 2;
+        _ext_bw_per_step /= 2;
 
-    if (_bw_balance && _mc_bw_per_step + _ext_bw_per_step > 0) {
-        // Calculate current bandwidth ratio
-        double ratio = 1.0 * _mc_bw_per_step / (_mc_bw_per_step + _ext_bw_per_step);
-        double target_ratio = 0.8;  // Target ratio (mc_bw = 4 * ext_bw)
+        if (_bw_balance && _mc_bw_per_step + _ext_bw_per_step > 0) {
+            // Calculate current bandwidth ratio
+            double ratio = 1.0 * _mc_bw_per_step / (_mc_bw_per_step + _ext_bw_per_step);
+            double target_ratio = 0.8;  // Target ratio (mc_bw = 4 * ext_bw)
 
-        // Adjust _ds_index based on bandwidth difference
-        uint64_t index_step = _num_sets / 1000;
-        int64_t delta_index = (ratio - target_ratio > -0.02 && ratio - target_ratio < 0.02) ? 0 : index_step * (ratio - target_ratio) / 0.01;
+            // Adjust _ds_index based on bandwidth difference
+            uint64_t index_step = _num_sets / 1000;
+            int64_t delta_index = (ratio - target_ratio > -0.02 && ratio - target_ratio < 0.02) ? 0 : index_step * (ratio - target_ratio) / 0.01;
 
-        printf("ratio = %f\n", ratio);
+            printf("ratio = %f\n", ratio);
 
-        if (delta_index > 0) {
-            // Handle increasing _ds_index
-            for (uint32_t mc = 0; mc < _mc->_mcdram_per_mc; mc++) {
-                for (uint64_t set = _ds_index; set < (uint64_t)(_ds_index + delta_index); set++) {
-                    if (set >= _num_sets) break;
+            if (delta_index > 0) {
+                // Handle increasing _ds_index
+                for (uint32_t mc = 0; mc < _mc->_mcdram_per_mc; mc++) {
+                    for (uint64_t set = _ds_index; set < (uint64_t)(_ds_index + delta_index); set++) {
+                        if (set >= _num_sets) break;
 
-                    for (uint32_t way = 0; way < _num_ways; way++) {
-                        Way& meta = _cache[set].ways[way];
-                        if (meta.valid && meta.dirty) {
-                            // Write back to external DRAM
-                            MESIState state;
-                            MemReq load_req = {meta.tag * 64, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-                            _mc->_mcdram[mc]->access(load_req, 2, (_granularity / 64) * 4);
-                            MemReq wb_req = {meta.tag * 64, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
-                            _mc->_ext_dram->access(wb_req, 2, (_granularity / 64) * 4);
-                            _ext_bw_per_step += (_granularity / 64) * 4;
-                            _mc_bw_per_step += (_granularity / 64) * 4;
+                        for (uint32_t way = 0; way < _num_ways; way++) {
+                            Way& meta = _cache[set].ways[way];
+                            if (meta.valid && meta.dirty) {
+                                // Write back to external DRAM
+                                MESIState state;
+                                MemReq load_req = {meta.tag * 64, GETS, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+                                _mc->_mcdram[mc]->access(load_req, 2, (_granularity / 64) * 4);
+                                MemReq wb_req = {meta.tag * 64, PUTX, req.childId, &state, req.cycle, req.childLock, req.initialState, req.srcId, req.flags};
+                                _mc->_ext_dram->access(wb_req, 2, (_granularity / 64) * 4);
+                                _ext_bw_per_step += (_granularity / 64) * 4;
+                                _mc_bw_per_step += (_granularity / 64) * 4;
+                            }
+
+                            meta.valid = false;
+                            meta.dirty = false;
                         }
-
-                        meta.valid = false;
-                        meta.dirty = false;
                     }
                 }
             }
+            _ds_index = ((int64_t)_ds_index + delta_index <= 0) ? 0 : _ds_index + delta_index;
+            printf("_ds_index = %ld/%ld\n", _ds_index, _num_sets);
         }
-        _ds_index = ((int64_t)_ds_index + delta_index <= 0) ? 0 : _ds_index + delta_index;
-        printf("_ds_index = %ld/%ld\n", _ds_index, _num_sets);
     }
 }
 
@@ -203,5 +231,14 @@ void AlloyCacheScheme::initStats(AggregateStat* parentStat) {
     stats->append(&_numTagStore);
     _numCounterAccess.init("counterAccess", "Counter Access");
     stats->append(&_numCounterAccess);
+    
+    stats->append(_numReaccessedLines);
+    stats->append(_numAccessedLines);
+    stats->append(_numTotalLines);
+    stats->append(_numAccessedExtLines);
+    stats->append(_numTotalExtLines);
+    stats->append(_numAccessedExtPages);
+    stats->append(_numTotalExtPages);
+    
     parentStat->append(stats);
 }

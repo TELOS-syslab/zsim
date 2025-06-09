@@ -1,0 +1,42 @@
+[
+  {
+    "name": "redis-alloy_512M_16G",
+    "command": "./utils/run.sh benchmarks redis alloy_512M_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "redis-alloy_1G_16G",
+    "command": "./utils/run.sh benchmarks redis alloy_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "redis-idealbalanced_512M_16G",
+    "command": "./utils/run.sh benchmarks redis idealbalanced_512M_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "redis-idealbalanced_1G_16G",
+    "command": "./utils/run.sh benchmarks redis idealbalanced_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "redis-idealfully_512M_16G",
+    "command": "./utils/run.sh benchmarks redis idealfully_512M_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "redis-idealfully_1G_16G",
+    "command": "./utils/run.sh benchmarks redis idealfully_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "redis-ndc-0_512M_16G",
+    "command": "./utils/run.sh benchmarks redis ndc-0_512M_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "redis-ndc-0_1G_16G",
+    "command": "./utils/run.sh benchmarks redis ndc-0_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

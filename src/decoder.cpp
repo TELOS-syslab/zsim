@@ -370,9 +370,10 @@ void Decoder::emitBasicOp(Instr& instr, DynUopVec& uops, uint32_t lat, uint8_t p
     uint32_t dstRegs[dsts + 2];
     populateRegArrays(instr, srcRegs, dstRegs);
 
-    if (reportUnhandled && (srcs > 2 || dsts > 2)) 
-	reportUnhandledCase(instr, "emitBasicOp"); //We're going to be ignoring some dependencies
-
+    if (reportUnhandled && (srcs > 2 || dsts > 2)) {
+        // reportUnhandledCase(instr, "emitBasicOp"); //We're going to be ignoring some dependencies
+    }
+	
     emitExecUop(srcRegs[0], srcRegs[1], dstRegs[0], dstRegs[1], uops, lat, ports, extraSlots);
 
     emitStores(instr, uops);

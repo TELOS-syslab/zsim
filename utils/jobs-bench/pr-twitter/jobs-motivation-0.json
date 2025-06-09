@@ -1,0 +1,32 @@
+[
+  {
+    "name": "pr-twitter-alloy_1G_16G",
+    "command": "./utils/run.sh benchmarks pr-twitter alloy_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "pr-twitter-alloy_2G_16G",
+    "command": "./utils/run.sh benchmarks pr-twitter alloy_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "pr-twitter-alloy_4G_16G",
+    "command": "./utils/run.sh benchmarks pr-twitter alloy_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "pr-twitter-idealbalanced_1G_16G",
+    "command": "./utils/run.sh benchmarks pr-twitter idealbalanced_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "pr-twitter-idealbalanced_2G_16G",
+    "command": "./utils/run.sh benchmarks pr-twitter idealbalanced_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "pr-twitter-idealbalanced_4G_16G",
+    "command": "./utils/run.sh benchmarks pr-twitter idealbalanced_4G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

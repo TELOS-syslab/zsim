@@ -7,9 +7,9 @@ if [ -z "$ZSIMPATH" ]; then
 fi
 
 
-
-benchmark=""
 category=$1
+benchmark=""
+cache_scheme=""
 if [[ $category == "debug" ]]; then
     cache_scheme=$2
 else

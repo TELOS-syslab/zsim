@@ -1,0 +1,52 @@
+[
+  {
+    "name": "ua.D-mini-alloy_2G_16G",
+    "command": "./utils/run.sh benchmarks-ff ua.D-mini alloy_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "ua.D-mini-alloy_1G_16G",
+    "command": "./utils/run.sh benchmarks-ff ua.D-mini alloy_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "ua.D-mini-idealbalanced_2G_16G",
+    "command": "./utils/run.sh benchmarks-ff ua.D-mini idealbalanced_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "ua.D-mini-idealbalanced_1G_16G",
+    "command": "./utils/run.sh benchmarks-ff ua.D-mini idealbalanced_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "ua.D-mini-idealfully_2G_16G",
+    "command": "./utils/run.sh benchmarks-ff ua.D-mini idealfully_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "ua.D-mini-idealfully_1G_16G",
+    "command": "./utils/run.sh benchmarks-ff ua.D-mini idealfully_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "ua.D-mini-ndc-0_2G_16G",
+    "command": "./utils/run.sh benchmarks-ff ua.D-mini ndc-0_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "ua.D-mini-ndc-0_1G_16G",
+    "command": "./utils/run.sh benchmarks-ff ua.D-mini ndc-0_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "ua.D-mini-ndc-3_2G_16G",
+    "command": "./utils/run.sh benchmarks-ff ua.D-mini ndc-3_2G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  },
+  {
+    "name": "ua.D-mini-ndc-3_1G_16G",
+    "command": "./utils/run.sh benchmarks-ff ua.D-mini ndc-3_1G_16G",
+    "working_dir": "~/chunk/git/git-own/zsim/"
+  }
+]

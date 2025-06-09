@@ -11,8 +11,9 @@
 #include <unordered_set>
 #include "memory_hierarchy.h"
 #include "stats.h"
-
+#include "zsim.h"
 #include "galloc.h"
+#include "process_stats.h"  // Add this include
 
 class DDRMemory;
 
@@ -27,22 +28,17 @@ class MemoryController : public MemObject {
     uint32_t _cur_trace_len;        // Current trace length
     uint32_t _max_trace_len;        // Maximum trace length
 	
+    g_unordered_map <Address, Address> _tlb;
+    g_unordered_set <Address> _exist_pgnum;
 
-    uint64_t _num_requests;
-    bool _bw_balance;    // Bandwidth balancing flag
-    uint64_t _ds_index;  // Data structure index
-    uint32_t _num_steps;
-    uint64_t _step_length;
-    // g_unordered_map <Address, Address> _tlb;
-    // g_unordered_set <Address> _exist_pgnum;
-    std::unordered_map<Address, Address> _tlb;
-    std::unordered_set<Address> _exist_pgnum;
+    // std::unordered_map<Address, Address> _tlb;
+    // std::unordered_set<Address> _exist_pgnum;
     g_string _page_map_scheme;
     uint64_t _johnny_ptr;
     drand48_data _buffer;
     uint32_t _page_bits;
-    uint64_t _cache_bits;
-    uint64_t _ext_bits;
+    uint32_t _cache_bits;
+    uint32_t _ext_bits;
 
    public:
     MemObject* _ext_dram;     // External DRAM
@@ -66,7 +62,13 @@ class MemoryController : public MemObject {
     const char* getName() override { return _name.c_str(); }
     void initStats(AggregateStat* parentStat) override;
     void printStats() override;
-    
+
+    inline void updateWarmupDone() {
+        if (zinfo->warmup_done) return;
+        if (zinfo->processStats->getTotalProcessInstrs() >= zinfo->warmup_instrs) {
+            zinfo->warmup_done = true;
+        }
+    }
     // Accessors for CacheScheme and memory components
     Scheme getScheme() { return _scheme; };
     CacheScheme* getCacheScheme() { return _cache_scheme; }
