@@ -1,0 +1,12 @@
+\contentsline {section}{\numberline {1}Why Do We Need to Simulate DRAM Systems This Accurately?}{1}{section.1}%
+\contentsline {subsection}{\numberline {1.1}DRAM Scheduling Complexity is Growing}{1}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}DRAM performance characteristics changes every generation}{2}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}The Sales Pitch}{2}{subsection.1.3}%
+\contentsline {section}{\numberline {2}About DRAMSim2}{2}{section.2}%
+\contentsline {section}{\numberline {3}Getting DRAMSim2}{2}{section.3}%
+\contentsline {section}{\numberline {4}Building DRAMSim2}{3}{section.4}%
+\contentsline {section}{\numberline {5}Running DRAMSim2}{3}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Trace-Based Simulation}{3}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Library Interface}{4}{subsection.5.2}%
+\contentsline {section}{\numberline {6}Example Output}{5}{section.6}%
+\contentsline {section}{\numberline {7}Results Output}{6}{section.7}%
