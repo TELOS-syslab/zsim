@@ -15,8 +15,10 @@ heartbeat
 /bin
 /output
 /results
-/lib
-/contrib
+/lib/pin*
+/lib/boost*
+/contrib/pin*
+/contrib/boost*
 /.sconsign.dblite
 /bak*/
 /logs
